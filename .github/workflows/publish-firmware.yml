@@ -67,7 +67,7 @@ jobs:
     needs: build-firmware
     steps:
       - name: Download firmware
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: waterfurnace
           path: files
