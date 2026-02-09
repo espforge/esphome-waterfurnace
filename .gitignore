@@ -1,0 +1,20 @@
+# Claude
+.claude/
+
+# ESPHome
+.esphome/
+secrets.yaml
+!tests/secrets.yaml
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Mac
+.DS_Store
+
+# Test binaries
+tests/unit/test_*
+!tests/unit/test_*.cpp
+!tests/unit/test_*.h

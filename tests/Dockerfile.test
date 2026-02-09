@@ -1,0 +1,6 @@
+FROM gcc:13
+WORKDIR /app
+COPY components/waterfurnace/protocol.h components/waterfurnace/protocol.cpp \
+     components/waterfurnace/registers.h ./src/
+COPY tests/test_integration.cpp ./
+RUN g++ -std=c++17 -I./src -o test_integration test_integration.cpp src/protocol.cpp

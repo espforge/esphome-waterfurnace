@@ -1,0 +1,21 @@
+services:
+  mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock
+    ports:
+      - "5020:502"
+    healthcheck:
+      test: ["CMD", "ruby", "-e", "require 'socket'; TCPSocket.new('localhost', 502).close"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  test:
+    build:
+      context: ..
+      dockerfile: tests/Dockerfile.test
+    depends_on:
+      mock:
+        condition: service_healthy
+    command: ./test_integration mock 502

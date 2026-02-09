@@ -1,0 +1,151 @@
+substitutions:
+  component_source: github://rwagoner/esphome-waterfurnace@main
+
+esphome:
+  name: waterfurnace
+  friendly_name: WaterFurnace Aurora
+  name_add_mac_suffix: true
+  project:
+    name: rwagoner.waterfurnace
+    version: "1.0.0"
+
+preferences:
+  flash_write_interval: 24h
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  custom_services: true
+
+ota:
+  platform: esphome
+
+web_server:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: ${component_source}
+
+# RS-485 UART - Waveshare ESP32-S3-RS485-CAN board
+# TX: GPIO17, RX: GPIO18, DE: GPIO21 (hardware auto-direction)
+uart:
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 19200
+  parity: EVEN
+  rx_buffer_size: 512
+
+waterfurnace:
+  id: wf
+  update_interval: 10s
+  # flow_control_pin: GPIO21  # Uncomment if hardware auto-direction doesn't work
+  connected:
+    name: "Connected"
+  connected_timeout: 30s
+
+climate:
+  - platform: waterfurnace
+    name: "Heat Pump"
+
+sensor:
+  - platform: waterfurnace
+    entering_water_temperature:
+      name: "Entering Water Temperature"
+    leaving_water_temperature:
+      name: "Leaving Water Temperature"
+    outdoor_temperature:
+      name: "Outdoor Temperature"
+    entering_air_temperature:
+      name: "Entering Air Temperature"
+    leaving_air_temperature:
+      name: "Leaving Air Temperature"
+    ambient_temperature:
+      name: "Ambient Temperature"
+    suction_temperature:
+      name: "Suction Temperature"
+    dhw_temperature:
+      name: "DHW Temperature"
+    discharge_pressure:
+      name: "Discharge Pressure"
+    suction_pressure:
+      name: "Suction Pressure"
+    loop_pressure:
+      name: "Loop Pressure"
+    waterflow:
+      name: "Waterflow"
+    compressor_power:
+      name: "Compressor Power"
+    blower_power:
+      name: "Blower Power"
+    aux_heat_power:
+      name: "Aux Heat Power"
+    total_power:
+      name: "Total Power"
+    pump_power:
+      name: "Pump Power"
+    line_voltage:
+      name: "Line Voltage"
+    compressor_amps:
+      name: "Compressor Amps"
+    blower_amps:
+      name: "Blower Amps"
+    relative_humidity:
+      name: "Relative Humidity"
+    compressor_speed:
+      name: "Compressor Speed"
+    heat_of_extraction:
+      name: "Heat of Extraction"
+    heat_of_rejection:
+      name: "Heat of Rejection"
+    fp1_temperature:
+      name: "FP1 Temperature"
+    fp2_temperature:
+      name: "FP2 Temperature"
+    subcooling:
+      name: "Subcooling"
+    superheat:
+      name: "Superheat"
+
+binary_sensor:
+  - platform: waterfurnace
+    compressor:
+      name: "Compressor"
+    compressor_stage2:
+      name: "Compressor Stage 2"
+    reversing_valve:
+      name: "Reversing Valve"
+    blower:
+      name: "Blower"
+    aux_heat_stage1:
+      name: "Aux Heat Stage 1"
+    aux_heat_stage2:
+      name: "Aux Heat Stage 2"
+    lockout:
+      name: "Lockout"
+    alarm:
+      name: "Alarm"
+
+switch:
+  - platform: waterfurnace
+    dhw_enable:
+      name: "DHW Enable"
+
+text_sensor:
+  - platform: waterfurnace
+    current_fault:
+      name: "Current Fault"
+    model_number:
+      name: "Model Number"
+    serial_number:
+      name: "Serial Number"
+    system_mode:
+      name: "System Mode"
