@@ -55,7 +55,7 @@ jobs:
           }' output/${{ steps.esphome-build.outputs.name }}/manifest.json > output/waterfurnace.manifest.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: waterfurnace
           path: output
