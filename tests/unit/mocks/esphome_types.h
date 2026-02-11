@@ -141,8 +141,14 @@ enum ClimatePreset : uint8_t {
   CLIMATE_PRESET_ACTIVITY = 7,
 };
 
+// Feature flags
+constexpr uint32_t CLIMATE_SUPPORTS_CURRENT_TEMPERATURE = 1 << 0;
+constexpr uint32_t CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE = 1 << 1;
+constexpr uint32_t CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE = 1 << 2;
+
 class ClimateTraits {
  public:
+  void add_feature_flags(uint32_t flags) {}
   void set_supports_current_temperature(bool v) {}
   void set_supports_two_point_target_temperature(bool v) {}
   void set_visual_min_temperature(float v) {}
@@ -150,9 +156,13 @@ class ClimateTraits {
   void set_visual_target_temperature_step(float v) {}
   void set_visual_current_temperature_step(float v) {}
   void set_supported_modes(std::vector<ClimateMode> modes) {}
+  void set_supported_modes(std::initializer_list<ClimateMode> modes) {}
   void set_supported_fan_modes(std::vector<ClimateFanMode> modes) {}
-  void set_supported_custom_fan_modes(std::vector<std::string> modes) {}
+  void set_supported_fan_modes(std::initializer_list<ClimateFanMode> modes) {}
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {}
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {}
   void set_supported_presets(std::vector<ClimatePreset> presets) {}
+  void set_supported_presets(std::initializer_list<ClimatePreset> presets) {}
 };
 
 class ClimateCall {
@@ -195,8 +205,15 @@ class Climate : public EntityBase {
   virtual ClimateTraits traits() { return ClimateTraits(); }
   virtual void control(const ClimateCall &call) {}
 
+  bool has_custom_fan_mode() const { return !custom_fan_mode_.empty(); }
+  std::string get_custom_fan_mode() const { return custom_fan_mode_; }
+
  protected:
-  void set_custom_fan_mode_(const std::string &mode) { custom_fan_mode_ = mode; }
+  bool set_custom_fan_mode_(const char *mode) {
+    custom_fan_mode_ = mode;
+    fan_mode.reset();
+    return true;
+  }
   void clear_custom_fan_mode_() { custom_fan_mode_.clear(); }
   std::string custom_fan_mode_;
 };

@@ -34,6 +34,7 @@ void WaterFurnaceSensor::on_register_value_hi_(uint16_t value) {
 
 void WaterFurnaceSensor::on_register_value_(uint16_t value) {
   float result;
+  bool check_sentinel = false;
 
   if (this->is_32bit_) {
     if (!this->has_hi_word_)
@@ -48,8 +49,10 @@ void WaterFurnaceSensor::on_register_value_(uint16_t value) {
     }
   } else if (this->register_type_ == "signed_tenths") {
     result = static_cast<int16_t>(value) / 10.0f;
+    check_sentinel = true;  // Check for -999.9 sentinel on tenths-based types
   } else if (this->register_type_ == "tenths") {
     result = value / 10.0f;
+    check_sentinel = true;  // Check for -999.9 sentinel on tenths-based types
   } else if (this->register_type_ == "signed") {
     result = static_cast<float>(static_cast<int16_t>(value));
   } else if (this->register_type_ == "hundredths") {
@@ -59,7 +62,16 @@ void WaterFurnaceSensor::on_register_value_(uint16_t value) {
     result = static_cast<float>(value);
   }
 
-  if (this->has_published_ && std::abs(result - this->last_published_value_) < 0.001f)
+  // Check for sentinel value -999.9 (sensor not available) and publish NaN instead
+  // Only for tenths-based types where -9999 raw value / 10 = -999.9
+  if (check_sentinel && std::abs(result - (-999.9f)) < 0.1f) {
+    result = NAN;
+  }
+
+  if (this->has_published_ && std::isnan(result) && std::isnan(this->last_published_value_))
+    return;  // Both NaN, no change
+  if (this->has_published_ && !std::isnan(result) && !std::isnan(this->last_published_value_) &&
+      std::abs(result - this->last_published_value_) < 0.001f)
     return;
   this->last_published_value_ = result;
   this->has_published_ = true;

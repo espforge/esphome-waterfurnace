@@ -90,27 +90,48 @@ void WaterFurnaceClimate::control(const climate::ClimateCall &call) {
         wf_mode = MODE_AUTO;
         break;
     }
+    // Optimistically update the state immediately
+    this->mode = mode;
     this->parent_->write_register(this->get_mode_write_reg_(), wf_mode);
+    this->publish_state_if_changed_();
   }
 
   if (call.get_preset().has_value()) {
     auto preset = *call.get_preset();
     if (preset == climate::CLIMATE_PRESET_BOOST) {
       // E-Heat mode
+      // Optimistically update the state immediately
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      this->preset = climate::CLIMATE_PRESET_BOOST;
       this->parent_->write_register(this->get_mode_write_reg_(), MODE_EHEAT);
+      this->publish_state_if_changed_();
     }
   }
 
   if (call.get_target_temperature_low().has_value()) {
-    float temp_f = *call.get_target_temperature_low() * 9.0f / 5.0f + 32.0f;
+    float temp_c = *call.get_target_temperature_low();
+    // Round to nearest 0.5556°C (1°F) for clean conversion
+    temp_c = std::round(temp_c / 0.5556f) * 0.5556f;
+    // Optimistically update the state immediately
+    this->target_temperature_low = temp_c;
+    // Convert to Fahrenheit and write to register
+    float temp_f = temp_c * 9.0f / 5.0f + 32.0f;
     uint16_t raw = static_cast<uint16_t>(temp_f * 10.0f);
     this->parent_->write_register(this->get_heating_sp_write_reg_(), raw);
+    this->publish_state_if_changed_();
   }
 
   if (call.get_target_temperature_high().has_value()) {
-    float temp_f = *call.get_target_temperature_high() * 9.0f / 5.0f + 32.0f;
+    float temp_c = *call.get_target_temperature_high();
+    // Round to nearest 0.5556°C (1°F) for clean conversion
+    temp_c = std::round(temp_c / 0.5556f) * 0.5556f;
+    // Optimistically update the state immediately
+    this->target_temperature_high = temp_c;
+    // Convert to Fahrenheit and write to register
+    float temp_f = temp_c * 9.0f / 5.0f + 32.0f;
     uint16_t raw = static_cast<uint16_t>(temp_f * 10.0f);
     this->parent_->write_register(this->get_cooling_sp_write_reg_(), raw);
+    this->publish_state_if_changed_();
   }
 
   if (call.get_fan_mode().has_value()) {
@@ -127,12 +148,20 @@ void WaterFurnaceClimate::control(const climate::ClimateCall &call) {
         wf_fan = FAN_AUTO;
         break;
     }
+    // Optimistically update the state immediately
+    this->fan_mode = fan_mode;
+    this->clear_custom_fan_mode_();
     this->parent_->write_register(this->get_fan_mode_write_reg_(), wf_fan);
+    this->publish_state_if_changed_();
   }
 
   if (call.has_custom_fan_mode()) {
-    if (call.get_custom_fan_mode() == "Intermittent") {
+    auto custom_fan = call.get_custom_fan_mode();
+    if (custom_fan == "Intermittent") {
+      // Optimistically update the state immediately
+      this->set_custom_fan_mode_("Intermittent");
       this->parent_->write_register(this->get_fan_mode_write_reg_(), FAN_INTERMITTENT);
+      this->publish_state_if_changed_();
     }
   }
 }
@@ -143,6 +172,8 @@ void WaterFurnaceClimate::on_ambient_temp_(uint16_t value) {
   // Convert from °F * 10 to °C
   float temp_f = static_cast<int16_t>(value) / 10.0f;
   float temp_c = (temp_f - 32.0f) * 5.0f / 9.0f;
+  // Round to nearest 0.5556°C (1°F) for clean conversion back to Fahrenheit
+  temp_c = std::round(temp_c / 0.5556f) * 0.5556f;
   this->current_temperature = temp_c;
   this->publish_state_if_changed_();
 }
@@ -151,6 +182,8 @@ void WaterFurnaceClimate::on_heating_setpoint_(uint16_t value) {
   // Convert from °F * 10 to °C
   float temp_f = value / 10.0f;
   float temp_c = (temp_f - 32.0f) * 5.0f / 9.0f;
+  // Round to nearest 0.5556°C (1°F) for clean conversion back to Fahrenheit
+  temp_c = std::round(temp_c / 0.5556f) * 0.5556f;
   this->target_temperature_low = temp_c;
   this->publish_state_if_changed_();
 }
@@ -159,6 +192,8 @@ void WaterFurnaceClimate::on_cooling_setpoint_(uint16_t value) {
   // Convert from °F * 10 to °C
   float temp_f = value / 10.0f;
   float temp_c = (temp_f - 32.0f) * 5.0f / 9.0f;
+  // Round to nearest 0.5556°C (1°F) for clean conversion back to Fahrenheit
+  temp_c = std::round(temp_c / 0.5556f) * 0.5556f;
   this->target_temperature_high = temp_c;
   this->publish_state_if_changed_();
 }
@@ -199,15 +234,11 @@ void WaterFurnaceClimate::on_fan_config_(uint16_t value) {
   if (value & 0x80) {
     this->fan_mode = climate::CLIMATE_FAN_ON;
     this->clear_custom_fan_mode_();
-    this->current_custom_fan_mode_.clear();
   } else if (value & 0x100) {
-    this->fan_mode.reset();
     this->set_custom_fan_mode_("Intermittent");
-    this->current_custom_fan_mode_ = "Intermittent";
   } else {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->clear_custom_fan_mode_();
-    this->current_custom_fan_mode_.clear();
   }
   this->publish_state_if_changed_();
 }
@@ -221,17 +252,13 @@ void WaterFurnaceClimate::on_iz2_config1_(uint16_t value) {
     case FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       this->clear_custom_fan_mode_();
-      this->current_custom_fan_mode_.clear();
       break;
     case FAN_CONTINUOUS:
       this->fan_mode = climate::CLIMATE_FAN_ON;
       this->clear_custom_fan_mode_();
-      this->current_custom_fan_mode_.clear();
       break;
     case FAN_INTERMITTENT:
-      this->fan_mode.reset();
       this->set_custom_fan_mode_("Intermittent");
-      this->current_custom_fan_mode_ = "Intermittent";
       break;
   }
 
@@ -337,7 +364,7 @@ void WaterFurnaceClimate::publish_state_if_changed_() {
       changed = true;
     else if (this->preset != this->last_preset_)
       changed = true;
-    else if (this->current_custom_fan_mode_ != this->last_custom_fan_mode_)
+    else if (this->has_custom_fan_mode() != this->last_has_custom_fan_mode_)
       changed = true;
 
     if (!changed)
@@ -350,7 +377,7 @@ void WaterFurnaceClimate::publish_state_if_changed_() {
   this->last_mode_ = this->mode;
   this->last_fan_mode_ = this->fan_mode;
   this->last_preset_ = this->preset;
-  this->last_custom_fan_mode_ = this->current_custom_fan_mode_;
+  this->last_has_custom_fan_mode_ = this->has_custom_fan_mode();
   this->has_published_ = true;
   this->publish_state();
 }

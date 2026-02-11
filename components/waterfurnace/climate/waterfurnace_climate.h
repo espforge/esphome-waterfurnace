@@ -53,8 +53,7 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
   climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
   optional<climate::ClimateFanMode> last_fan_mode_{};
   optional<climate::ClimatePreset> last_preset_{};
-  std::string current_custom_fan_mode_{};
-  std::string last_custom_fan_mode_{};
+  bool last_has_custom_fan_mode_{false};
   bool has_published_{false};
 };
 

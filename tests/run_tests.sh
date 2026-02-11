@@ -51,12 +51,25 @@ run_test "ESPHome compile" \
     ghcr.io/esphome/esphome compile waterfurnace-test.yaml
 
 # Example config validation (validates root config with local components)
-run_test "Example config validation" \
+run_test "Example config validation" bash -c '
+  # Create temporary config with wifi for validation
+  cat > "${ROOT}/.waterfurnace-test-example.yaml" <<EOF
+packages:
+  example: !include waterfurnace-esp32-s3.yaml
+
+substitutions:
+  component_source: components
+
+wifi:
+  ssid: test-network
+  password: test-password
+EOF
   docker run --rm \
     -v "${ROOT}":/config \
-    -v "${ROOT}/tests/secrets.yaml":/config/secrets.yaml \
     -w /config \
-    ghcr.io/esphome/esphome -s component_source components config waterfurnace-esp32-s3.yaml
+    ghcr.io/esphome/esphome config .waterfurnace-test-example.yaml
+  rm -f "${ROOT}/.waterfurnace-test-example.yaml"
+'
 
 # Summary
 echo
