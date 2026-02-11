@@ -1,0 +1,157 @@
+# Sample WaterFurnace Aurora register dump for testing
+# These are raw uint16 values as they come off the ModBus bus
+# Generated to simulate a typical 5-series unit with AXB, AWL thermostat, no IZ2
+
+# System ID
+2: 705           # ABC version 7.05
+33: 0            # ABC DIP switches
+88: 16706        # 'AB' (0x4142)
+89: 17235        # 'CS' (0x4353)
+90: 20556        # 'PL' (0x504C)
+91: 22099        # 'VS' (0x5653)
+# Program = "ABCSPLVS" (VS drive unit)
+
+92: 20308        # 'OT' Model number chars 1-2
+93: 20533        # 'P5' chars 3-4
+94: 12345        # chars 5-6
+95: 0
+96: 0
+97: 0
+98: 0
+99: 0
+100: 0
+101: 0
+102: 0
+103: 0
+
+105: 12345       # Serial number
+106: 0
+107: 0
+108: 0
+109: 0
+
+# Equipment types
+404: 1           # Blower type: ECM 230V
+412: 60          # Compressor Hz
+413: 3           # Pump type: VS Pump
+
+# Component status
+800: 1           # Thermostat: active
+801: 300         # Thermostat version 3.00 (AWL compliant)
+802: 100         # Thermostat revision
+
+806: 1           # AXB: active
+807: 200         # AXB version 2.00 (AWL compliant)
+808: 100         # AXB revision
+
+812: 3           # IZ2: removed
+813: 0
+814: 0
+
+815: 3           # AOC: removed
+818: 3           # MOC: removed
+824: 1           # EEV2: active
+825: 100
+827: 1           # AWL: active
+828: 200
+
+483: 0           # IZ2 zone count (0 = not IZ2)
+
+# Status registers
+16: 240          # Line voltage
+19: 850          # FP1 temp 85.0°F (signed tenths)
+20: 680          # FP2 temp 68.0°F
+25: 0            # Last fault: none
+26: 0            # Last lockout
+30: 9            # System outputs: CC + Blower (0x01 | 0x08 = 0x09) = heating
+31: 0            # System inputs
+
+344: 0           # Status 1
+362: 0           # Status 2
+502: 350         # Demand 35.0
+
+# Thermostat
+740: 705         # Entering air 70.5°F
+741: 45          # Humidity 45%
+742: 320         # Outdoor temp 32.0°F
+745: 680         # Heating setpoint 68.0°F
+746: 750         # Cooling setpoint 75.0°F
+747: 710         # Ambient temp 71.0°F
+
+# Thermostat config (AWL)
+12005: 0         # Fan config: auto (no bits set)
+12006: 256       # Mode config: auto (1 << 8 = 0x0100)
+
+# AXB registers
+400: 1           # DHW enable
+401: 1200        # DHW setpoint 120.0°F
+
+900: 920         # Leaving air temp 92.0°F
+
+1103: 0          # AXB inputs
+1104: 1          # AXB outputs: DHW active
+1105: 32         # Blower amps 3.2A
+1106: 0          # Aux amps
+1107: 85         # Compressor amps 8.5A
+1108: 0          # Air coil amps
+
+1109: 320        # Outdoor temp 2: 32.0°F
+1110: 950        # Leaving water temp 95.0°F
+1111: 450        # Entering water temp 45.0°F
+1112: 150        # Superheat temp 15.0°F
+1113: 400        # Suction temp 40.0°F
+1114: 1150       # DHW temp 115.0°F
+1115: 3500       # Discharge pressure 350.0 psi
+1116: 680        # Suction pressure 68.0 psi
+1117: 50         # Waterflow 5.0 gpm
+1118: 0
+1119: 250        # Loop pressure 25.0 psi
+
+1124: 85         # Subcooling 8.5°F
+1125: 120        # Superheat 12.0°F
+
+1134: 30         # Approach 3.0°F
+1135: 450        # EEV open 45.0%
+1136: 400        # EEV calc 40.0%
+
+# Power registers (uint32 pairs: hi, lo)
+1146: 0          # Compressor watts hi
+1147: 3500       # Compressor watts lo = 3500W
+1148: 0          # Blower watts hi
+1149: 450        # Blower watts lo = 450W
+1150: 0          # Aux heat watts hi
+1151: 0          # Aux heat watts lo = 0W
+1152: 0          # Total watts hi
+1153: 3950       # Total watts lo = 3950W
+1154: 0          # Heat of extraction hi
+1155: 28000      # Heat of extraction lo = 28000 BTU/h
+1156: 0          # Heat of rejection hi
+1157: 40000      # Heat of rejection lo = 40000 BTU/h
+
+1164: 0          # Pump watts hi
+1165: 200        # Pump watts lo = 200W
+
+# VS Drive registers
+3000: 3200       # Speed desired
+3001: 3150       # Speed actual
+3220: 0
+3221: 0
+3222: 0
+3223: 0
+3224: 0
+3225: 0
+3226: 0
+3227: 0
+
+3322: 3500       # VS discharge pressure 350.0 psi
+3323: 680        # VS suction pressure 68.0 psi
+3324: 0
+3325: 1650       # VS discharge temp 165.0°F
+3326: 0
+3327: 0
+3328: 0
+3329: 0
+3330: 0
+
+3522: 950        # VS inverter temp 95.0°F
+3524: 2800       # VS fan speed

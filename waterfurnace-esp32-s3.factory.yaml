@@ -1,0 +1,30 @@
+packages:
+  core: !include waterfurnace-esp32-s3.yaml
+
+esphome:
+  project:
+    version: dev
+
+dashboard_import:
+  package_import_url: github://espforge/esphome-waterfurnace/waterfurnace-esp32-s3.yaml@main
+
+esp32_improv:
+  authorizer: none
+
+improv_serial:
+
+ota:
+  - platform: web_server
+
+wifi:
+
+web_server:
+
+# For IZ2 multi-zone, add one climate entry per zone:
+# climate:
+#   - platform: waterfurnace
+#     name: "Zone 1"
+#     zone: 1
+#   - platform: waterfurnace
+#     name: "Zone 2"
+#     zone: 2

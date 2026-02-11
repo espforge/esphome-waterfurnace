@@ -1,0 +1,7 @@
+FROM ruby:3.3
+RUN gem install gserver waterfurnace_aurora
+WORKDIR /app
+COPY aurora_tcp_mock.rb .
+COPY fixtures/ fixtures/
+EXPOSE 502
+CMD ["ruby", "aurora_tcp_mock.rb", "fixtures/sample_registers.yml", "502"]
