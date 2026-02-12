@@ -161,3 +161,46 @@ TEST_F(SensorTest, DedupDifferentValue) {
   hub_->dispatch_register_(740, 200);
   EXPECT_FLOAT_EQ(sensor_->state, 200.0f);
 }
+
+// ====== Sentinel Value Handling ======
+
+TEST_F(SensorTest, NegativeSentinelSignedTenths) {
+  sensor_->set_register_address(1116);
+  sensor_->set_register_type("signed_tenths");
+  sensor_->setup();
+
+  // -9999 raw as uint16 -> signed_tenths -> -999.9 -> NaN
+  uint16_t raw = static_cast<uint16_t>(static_cast<int16_t>(-9999));
+  hub_->dispatch_register_(1116, raw);
+  EXPECT_TRUE(std::isnan(sensor_->state));
+}
+
+TEST_F(SensorTest, PositiveSentinelSignedTenths) {
+  sensor_->set_register_address(1117);
+  sensor_->set_register_type("signed_tenths");
+  sensor_->setup();
+
+  // 9999 raw -> signed_tenths -> 999.9 -> NaN (e.g. waterflow not supported)
+  hub_->dispatch_register_(1117, 9999);
+  EXPECT_TRUE(std::isnan(sensor_->state));
+}
+
+TEST_F(SensorTest, PositiveSentinelTenths) {
+  sensor_->set_register_address(1117);
+  sensor_->set_register_type("tenths");
+  sensor_->setup();
+
+  // 9999 raw -> tenths -> 999.9 -> NaN
+  hub_->dispatch_register_(1117, 9999);
+  EXPECT_TRUE(std::isnan(sensor_->state));
+}
+
+TEST_F(SensorTest, ValidValueNotSentinel) {
+  sensor_->set_register_address(1117);
+  sensor_->set_register_type("signed_tenths");
+  sensor_->setup();
+
+  // 50 raw -> 5.0 gpm (valid, not sentinel)
+  hub_->dispatch_register_(1117, 50);
+  EXPECT_FLOAT_EQ(sensor_->state, 5.0f);
+}

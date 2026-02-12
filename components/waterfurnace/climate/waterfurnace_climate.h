@@ -20,6 +20,9 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
   void control(const climate::ClimateCall &call) override;
 
  protected:
+  // Deferred listener registration (called after hub detection completes)
+  void register_listeners_();
+
   // Register callbacks
   void on_ambient_temp_(uint16_t value);
   void on_heating_setpoint_(uint16_t value);
@@ -40,7 +43,7 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
   void publish_state_if_changed_();
 
   WaterFurnace *parent_{nullptr};
-  uint8_t zone_{0};  // 0 = single zone, 1-6 = IZ2 zone number
+  uint8_t zone_{1};  // 1-6: zone 1 auto-detects thermostat vs IZ2
 
   // Cached IZ2 config registers for extracting packed values
   uint16_t iz2_config1_{0};
@@ -52,8 +55,8 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
   float last_target_high_{NAN};
   climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
   optional<climate::ClimateFanMode> last_fan_mode_{};
-  optional<climate::ClimatePreset> last_preset_{};
   bool last_has_custom_fan_mode_{false};
+  bool last_has_custom_preset_{false};
   bool has_published_{false};
 };
 

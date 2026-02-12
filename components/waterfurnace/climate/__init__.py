@@ -14,7 +14,7 @@ WaterFurnaceClimate = waterfurnace_ns.class_(
 
 CONFIG_SCHEMA = climate.climate_schema(WaterFurnaceClimate).extend(
     {
-        cv.Optional(CONF_ZONE, default=0): cv.int_range(min=0, max=6),
+        cv.Optional(CONF_ZONE, default=1): cv.int_range(min=1, max=6),
     }
 ).extend(WATERFURNACE_CLIENT_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 

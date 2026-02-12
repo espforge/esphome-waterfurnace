@@ -163,6 +163,8 @@ class ClimateTraits {
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {}
   void set_supported_presets(std::vector<ClimatePreset> presets) {}
   void set_supported_presets(std::initializer_list<ClimatePreset> presets) {}
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {}
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {}
 };
 
 class ClimateCall {
@@ -174,6 +176,8 @@ class ClimateCall {
   optional<float> get_target_temperature_high() const { return target_high_; }
   bool has_custom_fan_mode() const { return custom_fan_mode_.has_value(); }
   std::string get_custom_fan_mode() const { return custom_fan_mode_.value_or(""); }
+  bool has_custom_preset() const { return custom_preset_.has_value(); }
+  std::string get_custom_preset() const { return custom_preset_.value_or(""); }
 
   ClimateCall &set_mode(ClimateMode mode) { mode_ = mode; return *this; }
   ClimateCall &set_fan_mode(ClimateFanMode mode) { fan_mode_ = mode; return *this; }
@@ -181,6 +185,7 @@ class ClimateCall {
   ClimateCall &set_target_temperature_low(float v) { target_low_ = v; return *this; }
   ClimateCall &set_target_temperature_high(float v) { target_high_ = v; return *this; }
   ClimateCall &set_custom_fan_mode(const std::string &mode) { custom_fan_mode_ = mode; return *this; }
+  ClimateCall &set_custom_preset(const std::string &preset) { custom_preset_ = preset; return *this; }
 
  private:
   optional<ClimateMode> mode_;
@@ -189,6 +194,7 @@ class ClimateCall {
   optional<float> target_low_;
   optional<float> target_high_;
   optional<std::string> custom_fan_mode_;
+  optional<std::string> custom_preset_;
 };
 
 class Climate : public EntityBase {
@@ -207,6 +213,8 @@ class Climate : public EntityBase {
 
   bool has_custom_fan_mode() const { return !custom_fan_mode_.empty(); }
   std::string get_custom_fan_mode() const { return custom_fan_mode_; }
+  bool has_custom_preset() const { return !custom_preset_.empty(); }
+  std::string get_custom_preset() const { return custom_preset_; }
 
  protected:
   bool set_custom_fan_mode_(const char *mode) {
@@ -215,7 +223,14 @@ class Climate : public EntityBase {
     return true;
   }
   void clear_custom_fan_mode_() { custom_fan_mode_.clear(); }
+  bool set_custom_preset_(const char *p) {
+    custom_preset_ = p;
+    preset.reset();
+    return true;
+  }
+  void clear_custom_preset_() { custom_preset_.clear(); }
   std::string custom_fan_mode_;
+  std::string custom_preset_;
 };
 
 }  // namespace climate

@@ -28,6 +28,7 @@ class TestableClimate : public WaterFurnaceClimate {
   using WaterFurnaceClimate::iz2_config2_;
   using WaterFurnaceClimate::has_published_;
   using WaterFurnaceClimate::custom_fan_mode_;
+  using WaterFurnaceClimate::custom_preset_;
 };
 
 class ClimateTest : public ::testing::Test {
@@ -49,10 +50,10 @@ class ClimateTest : public ::testing::Test {
   TestableClimate *climate_;
 };
 
-// ====== Single Zone: Temperature Callbacks ======
+// ====== Zone 1 (No IZ2): Temperature Callbacks ======
 
 TEST_F(ClimateTest, AmbientTempConversion) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // 70.0°F = 700 raw → 21.111°C
@@ -62,7 +63,7 @@ TEST_F(ClimateTest, AmbientTempConversion) {
 }
 
 TEST_F(ClimateTest, AmbientTempNegative) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // -10.0°F = 0xFF9C as signed → should convert to negative Celsius
@@ -73,7 +74,7 @@ TEST_F(ClimateTest, AmbientTempNegative) {
 }
 
 TEST_F(ClimateTest, HeatingSetpointConversion) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // 68.0°F = 680 raw
@@ -83,7 +84,7 @@ TEST_F(ClimateTest, HeatingSetpointConversion) {
 }
 
 TEST_F(ClimateTest, CoolingSetpointConversion) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // 75.0°F = 750 raw
@@ -92,29 +93,29 @@ TEST_F(ClimateTest, CoolingSetpointConversion) {
   EXPECT_NEAR(climate_->target_temperature_high, expected_c, 0.01f);
 }
 
-// ====== Single Zone: Mode Callbacks ======
+// ====== Zone 1 (No IZ2): Mode Callbacks ======
 
 TEST_F(ClimateTest, ModeOff) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // MODE_OFF = 0, in bits 8-10: 0x0000
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_OFF << 8);
   EXPECT_EQ(climate_->mode, CLIMATE_MODE_OFF);
-  EXPECT_EQ(climate_->preset, CLIMATE_PRESET_NONE);
+  EXPECT_FALSE(climate_->has_custom_preset());
 }
 
 TEST_F(ClimateTest, ModeAuto) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_AUTO << 8);
   EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT_COOL);
-  EXPECT_EQ(climate_->preset, CLIMATE_PRESET_NONE);
+  EXPECT_FALSE(climate_->has_custom_preset());
 }
 
 TEST_F(ClimateTest, ModeCool) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_COOL << 8);
@@ -122,27 +123,28 @@ TEST_F(ClimateTest, ModeCool) {
 }
 
 TEST_F(ClimateTest, ModeHeat) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_HEAT << 8);
   EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT);
-  EXPECT_EQ(climate_->preset, CLIMATE_PRESET_NONE);
+  EXPECT_FALSE(climate_->has_custom_preset());
 }
 
-TEST_F(ClimateTest, ModeEheat) {
-  climate_->set_zone(0);
+TEST_F(ClimateTest, ModeEheatReadBack) {
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_EHEAT << 8);
   EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT);
-  EXPECT_EQ(climate_->preset, CLIMATE_PRESET_BOOST);
+  EXPECT_TRUE(climate_->has_custom_preset());
+  EXPECT_EQ(climate_->custom_preset_, "E-Heat");
 }
 
-// ====== Single Zone: Fan Callbacks ======
+// ====== Zone 1 (No IZ2): Fan Callbacks ======
 
 TEST_F(ClimateTest, FanAuto) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_FAN_CONFIG, 0x0000);
@@ -150,7 +152,7 @@ TEST_F(ClimateTest, FanAuto) {
 }
 
 TEST_F(ClimateTest, FanContinuous) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // Bit 7 set = continuous (FAN_ON)
@@ -159,7 +161,7 @@ TEST_F(ClimateTest, FanContinuous) {
 }
 
 TEST_F(ClimateTest, FanIntermittent) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // Bit 8 set = intermittent
@@ -172,6 +174,7 @@ TEST_F(ClimateTest, FanIntermittent) {
 
 TEST_F(ClimateTest, IZ2Config1FanAuto) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   // Fan mode auto = bits 7-8 clear
@@ -182,6 +185,7 @@ TEST_F(ClimateTest, IZ2Config1FanAuto) {
 
 TEST_F(ClimateTest, IZ2Config1FanContinuous) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -191,6 +195,7 @@ TEST_F(ClimateTest, IZ2Config1FanContinuous) {
 
 TEST_F(ClimateTest, IZ2Config1FanIntermittent) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -201,6 +206,7 @@ TEST_F(ClimateTest, IZ2Config1FanIntermittent) {
 
 TEST_F(ClimateTest, IZ2Config1CoolingSetpoint) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -213,6 +219,7 @@ TEST_F(ClimateTest, IZ2Config1CoolingSetpoint) {
 
 TEST_F(ClimateTest, IZ2Config2ModeOff) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -222,6 +229,7 @@ TEST_F(ClimateTest, IZ2Config2ModeOff) {
 
 TEST_F(ClimateTest, IZ2Config2ModeAuto) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -231,6 +239,7 @@ TEST_F(ClimateTest, IZ2Config2ModeAuto) {
 
 TEST_F(ClimateTest, IZ2Config2ModeCool) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -240,15 +249,30 @@ TEST_F(ClimateTest, IZ2Config2ModeCool) {
 
 TEST_F(ClimateTest, IZ2Config2ModeHeat) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
   hub_->dispatch_register_(base + 2, 0x0300);  // MODE_HEAT
   EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT);
+  EXPECT_FALSE(climate_->has_custom_preset());
+}
+
+TEST_F(ClimateTest, IZ2Config2ModeOnlyUses2Bits) {
+  // IZ2 zones use 2-bit mode (0-3 only); eheat (4) is not readable from zone config
+  climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
+  climate_->setup();
+
+  uint16_t base = REG_IZ2_ZONE_BASE;
+  // Value 4 in bits 8-10 → masked to 0 by & 0x03 → MODE_OFF
+  hub_->dispatch_register_(base + 2, 0x0400);
+  EXPECT_EQ(climate_->mode, CLIMATE_MODE_OFF);
 }
 
 TEST_F(ClimateTest, IZ2HeatingSetpoint) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   climate_->setup();
 
   uint16_t base = REG_IZ2_ZONE_BASE;
@@ -265,10 +289,27 @@ TEST_F(ClimateTest, IZ2HeatingSetpoint) {
   EXPECT_FALSE(std::isnan(climate_->target_temperature_low));
 }
 
+TEST_F(ClimateTest, IZ2Config2ClearsCustomPreset) {
+  // When IZ2 config is read back, any active custom preset should be cleared
+  climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
+  climate_->setup();
+
+  // Simulate optimistic E-Heat preset
+  climate_->custom_preset_ = "E-Heat";
+  EXPECT_TRUE(climate_->has_custom_preset());
+
+  // IZ2 config read-back should clear it
+  uint16_t base = REG_IZ2_ZONE_BASE;
+  hub_->dispatch_register_(base + 2, 0x0300);  // MODE_HEAT
+  EXPECT_FALSE(climate_->has_custom_preset());
+}
+
 // ====== Write Register Addresses ======
 
-TEST_F(ClimateTest, SingleZoneWriteRegs) {
-  climate_->set_zone(0);
+TEST_F(ClimateTest, Zone1NoIZ2WriteRegs) {
+  climate_->set_zone(1);
+  // has_iz2_ defaults to false
   EXPECT_EQ(climate_->get_mode_write_reg_(), REG_WRITE_MODE);
   EXPECT_EQ(climate_->get_heating_sp_write_reg_(), REG_WRITE_HEATING_SP);
   EXPECT_EQ(climate_->get_cooling_sp_write_reg_(), REG_WRITE_COOLING_SP);
@@ -277,6 +318,7 @@ TEST_F(ClimateTest, SingleZoneWriteRegs) {
 
 TEST_F(ClimateTest, IZ2Zone1WriteRegs) {
   climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
   EXPECT_EQ(climate_->get_mode_write_reg_(), REG_IZ2_WRITE_BASE);
   EXPECT_EQ(climate_->get_heating_sp_write_reg_(), REG_IZ2_WRITE_BASE + 1);
   EXPECT_EQ(climate_->get_cooling_sp_write_reg_(), REG_IZ2_WRITE_BASE + 2);
@@ -294,7 +336,7 @@ TEST_F(ClimateTest, IZ2Zone3WriteRegs) {
 // ====== Control Method ======
 
 TEST_F(ClimateTest, ControlSetModeOff) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -307,7 +349,7 @@ TEST_F(ClimateTest, ControlSetModeOff) {
 }
 
 TEST_F(ClimateTest, ControlSetModeHeatCool) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -319,7 +361,7 @@ TEST_F(ClimateTest, ControlSetModeHeatCool) {
 }
 
 TEST_F(ClimateTest, ControlSetModeCool) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -331,7 +373,7 @@ TEST_F(ClimateTest, ControlSetModeCool) {
 }
 
 TEST_F(ClimateTest, ControlSetModeHeat) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -342,21 +384,43 @@ TEST_F(ClimateTest, ControlSetModeHeat) {
   EXPECT_EQ(waterfurnace::written_registers[0].second, MODE_HEAT);
 }
 
-TEST_F(ClimateTest, ControlSetPresetBoost) {
-  climate_->set_zone(0);
+TEST_F(ClimateTest, ControlSetCustomPresetEHeat) {
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
-  call.set_preset(CLIMATE_PRESET_BOOST);
+  call.set_custom_preset("E-Heat");
   climate_->control(call);
 
   ASSERT_EQ(waterfurnace::written_registers.size(), 1u);
   EXPECT_EQ(waterfurnace::written_registers[0].first, REG_WRITE_MODE);
   EXPECT_EQ(waterfurnace::written_registers[0].second, MODE_EHEAT);
+  EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT);
+  EXPECT_TRUE(climate_->has_custom_preset());
+  EXPECT_EQ(climate_->custom_preset_, "E-Heat");
+}
+
+TEST_F(ClimateTest, ControlSetModeClearsCustomPreset) {
+  climate_->set_zone(1);
+  climate_->setup();
+
+  // First set E-Heat
+  ClimateCall call1;
+  call1.set_custom_preset("E-Heat");
+  climate_->control(call1);
+  EXPECT_TRUE(climate_->has_custom_preset());
+
+  // Then set a regular mode — should clear custom preset
+  waterfurnace::clear_written_registers();
+  ClimateCall call2;
+  call2.set_mode(CLIMATE_MODE_HEAT);
+  climate_->control(call2);
+  EXPECT_FALSE(climate_->has_custom_preset());
+  EXPECT_EQ(climate_->mode, CLIMATE_MODE_HEAT);
 }
 
 TEST_F(ClimateTest, ControlSetHeatingSetpoint) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // 20°C → 68°F → raw 680
@@ -372,7 +436,7 @@ TEST_F(ClimateTest, ControlSetHeatingSetpoint) {
 }
 
 TEST_F(ClimateTest, ControlSetCoolingSetpoint) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   // 23.889°C → 75°F → raw 750
@@ -387,7 +451,7 @@ TEST_F(ClimateTest, ControlSetCoolingSetpoint) {
 }
 
 TEST_F(ClimateTest, ControlSetFanAuto) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -400,7 +464,7 @@ TEST_F(ClimateTest, ControlSetFanAuto) {
 }
 
 TEST_F(ClimateTest, ControlSetFanOn) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -412,7 +476,7 @@ TEST_F(ClimateTest, ControlSetFanOn) {
 }
 
 TEST_F(ClimateTest, ControlSetCustomFanIntermittent) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   ClimateCall call;
@@ -437,10 +501,25 @@ TEST_F(ClimateTest, ControlIZ2WritesCorrectRegister) {
   EXPECT_EQ(waterfurnace::written_registers[0].first, REG_IZ2_WRITE_BASE + 9);
 }
 
+TEST_F(ClimateTest, ControlIZ2Zone1EHeatWrite) {
+  // Zone 1 with IZ2 should write E-Heat to IZ2 write registers
+  climate_->set_zone(1);
+  hub_->set_has_iz2_(true);
+  climate_->setup();
+
+  ClimateCall call;
+  call.set_custom_preset("E-Heat");
+  climate_->control(call);
+
+  ASSERT_EQ(waterfurnace::written_registers.size(), 1u);
+  EXPECT_EQ(waterfurnace::written_registers[0].first, REG_IZ2_WRITE_BASE);
+  EXPECT_EQ(waterfurnace::written_registers[0].second, MODE_EHEAT);
+}
+
 // ====== Publish Dedup ======
 
 TEST_F(ClimateTest, DedupFirstPublishAlwaysWorks) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_AMBIENT_TEMP, 700);
@@ -448,7 +527,7 @@ TEST_F(ClimateTest, DedupFirstPublishAlwaysWorks) {
 }
 
 TEST_F(ClimateTest, DedupSameValueNoRepublish) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_AMBIENT_TEMP, 700);
@@ -459,7 +538,7 @@ TEST_F(ClimateTest, DedupSameValueNoRepublish) {
 }
 
 TEST_F(ClimateTest, DedupDifferentValueRepublishes) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_AMBIENT_TEMP, 700);
@@ -470,7 +549,7 @@ TEST_F(ClimateTest, DedupDifferentValueRepublishes) {
 }
 
 TEST_F(ClimateTest, DedupModeChangeRepublishes) {
-  climate_->set_zone(0);
+  climate_->set_zone(1);
   climate_->setup();
 
   hub_->dispatch_register_(REG_MODE_CONFIG, MODE_OFF << 8);

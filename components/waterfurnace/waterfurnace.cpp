@@ -415,6 +415,14 @@ void WaterFurnace::process_response_(const std::vector<uint8_t> &frame) {
 
       // Build polling groups based on detected components
       this->build_poll_groups_();
+      this->setup_complete_ = true;
+
+      // Fire deferred setup callbacks (child entities waiting for detection results)
+      for (auto &cb : this->setup_callbacks_) {
+        cb();
+      }
+      this->setup_callbacks_.clear();
+
       this->setup_phase_ = 0;
       this->state_ = State::IDLE;
 

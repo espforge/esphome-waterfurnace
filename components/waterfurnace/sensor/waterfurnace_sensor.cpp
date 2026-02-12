@@ -62,9 +62,10 @@ void WaterFurnaceSensor::on_register_value_(uint16_t value) {
     result = static_cast<float>(value);
   }
 
-  // Check for sentinel value -999.9 (sensor not available) and publish NaN instead
-  // Only for tenths-based types where -9999 raw value / 10 = -999.9
-  if (check_sentinel && std::abs(result - (-999.9f)) < 0.1f) {
+  // Check for sentinel values (sensor not available) and publish NaN instead
+  // -999.9: signed_tenths where raw -9999 / 10 = -999.9
+  //  999.9: tenths where raw 9999 / 10 = 999.9 (e.g. waterflow when not supported)
+  if (check_sentinel && (std::abs(result - (-999.9f)) < 0.1f || std::abs(result - 999.9f) < 0.1f)) {
     result = NAN;
   }
 

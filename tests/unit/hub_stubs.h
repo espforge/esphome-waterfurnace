@@ -63,10 +63,12 @@ std::string WaterFurnace::decode_string_(const std::map<uint16_t, uint16_t> &,
   return "";
 }
 
-// Testable subclass to expose protected dispatch_register_
+// Testable subclass to expose protected members for testing
 class TestableHub : public WaterFurnace {
  public:
+  TestableHub() { setup_complete_ = true; }
   using WaterFurnace::dispatch_register_;
+  void set_has_iz2_(bool v) { has_iz2_ = v; }
 };
 
 }  // namespace waterfurnace

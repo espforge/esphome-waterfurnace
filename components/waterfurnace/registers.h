@@ -365,6 +365,8 @@ inline std::vector<std::pair<uint16_t, uint16_t>> get_iz2_ranges(uint8_t zone_co
 // --- IZ2 zone register extraction helpers ---
 
 // Extract mode from zone_configuration2 register
+// IZ2 zones use 2 bits for mode (values 0-3: off/auto/cool/heat)
+// E-heat is not readable from IZ2 zone config; detected via system outputs (register 30)
 inline uint8_t iz2_extract_mode(uint16_t config2) {
   return (config2 >> 8) & 0x03;
 }

@@ -46,6 +46,18 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { connected_sensor_ = sensor; }
   void set_connected_timeout(uint32_t timeout) { connected_timeout_ = timeout; }
 
+  // Setup completion status (true after build_poll_groups_ completes)
+  bool is_setup_complete() const { return setup_complete_; }
+
+  // Deferred callback for child entities that need hub detection results
+  void register_setup_callback(std::function<void()> callback) {
+    if (this->setup_complete_) {
+      callback();
+    } else {
+      this->setup_callbacks_.push_back(std::move(callback));
+    }
+  }
+
   // Accessors for detected capabilities
   bool has_thermostat() const { return has_thermostat_; }
   bool has_iz2() const { return has_iz2_; }
@@ -113,6 +125,10 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
 
   // Track which addresses we expect in the current response
   std::vector<uint16_t> expected_addresses_;
+
+  // Setup completion
+  bool setup_complete_{false};
+  std::vector<std::function<void()>> setup_callbacks_;
 
   // System detection results
   bool has_thermostat_{false};
