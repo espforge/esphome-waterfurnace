@@ -20,7 +20,12 @@ wifi:
 
 web_server:
 
-# For IZ2 multi-zone, add one climate entry per zone:
+# Single zone (no IZ2):
+climate:
+  - platform: waterfurnace
+    name: "Heat Pump"
+
+# For IZ2 multi-zone, replace the above with:
 # climate:
 #   - platform: waterfurnace
 #     name: "Zone 1"

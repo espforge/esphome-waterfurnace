@@ -12,22 +12,14 @@ void WaterFurnaceTextSensor::setup() {
       this->on_fault_register_(v);
     });
   } else if (this->sensor_type_ == "model") {
-    // Publish once from parent's cached value
-    // Register for any register update to trigger re-publish
-    this->parent_->register_listener(REG_MODEL_NUMBER, [this](uint16_t v) {
+    // Model is read once during hub setup; publish after detection completes
+    this->parent_->register_setup_callback([this]() {
       this->publish_state_dedup_(this->parent_->model_number());
     });
-    // Also publish immediately if already available
-    if (!this->parent_->model_number().empty()) {
-      this->publish_state_dedup_(this->parent_->model_number());
-    }
   } else if (this->sensor_type_ == "serial") {
-    this->parent_->register_listener(REG_SERIAL_NUMBER, [this](uint16_t v) {
+    this->parent_->register_setup_callback([this]() {
       this->publish_state_dedup_(this->parent_->serial_number());
     });
-    if (!this->parent_->serial_number().empty()) {
-      this->publish_state_dedup_(this->parent_->serial_number());
-    }
   } else if (this->sensor_type_ == "mode") {
     this->parent_->register_listener(REG_SYSTEM_OUTPUTS, [this](uint16_t v) {
       this->on_system_outputs_(v);
