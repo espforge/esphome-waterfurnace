@@ -46,30 +46,53 @@ climate:
 
 sensor:
   - platform: waterfurnace
-    entering_water_temperature:
-      name: "Entering Water Temperature"
-    leaving_water_temperature:
-      name: "Leaving Water Temperature"
+    # Thermostat
+    ambient_temperature:
+      name: "Ambient Temperature"
     outdoor_temperature:
       name: "Outdoor Temperature"
     entering_air_temperature:
       name: "Entering Air Temperature"
+    relative_humidity:
+      name: "Relative Humidity"
+    # AXB Performance
+    entering_water_temperature:
+      name: "Entering Water Temperature"
+    leaving_water_temperature:
+      name: "Leaving Water Temperature"
     leaving_air_temperature:
       name: "Leaving Air Temperature"
-    ambient_temperature:
-      name: "Ambient Temperature"
     suction_temperature:
       name: "Suction Temperature"
     dhw_temperature:
       name: "DHW Temperature"
+    fp1_temperature:
+      name: "FP1 Temperature"
+    fp2_temperature:
+      name: "FP2 Temperature"
+    sat_evap_temperature:
+      name: "Saturated Evaporator Temp"
+    superheat:
+      name: "Superheat"
+    sat_cond_temperature:
+      name: "Sat Condenser Discharge Temp"
+    subcooling_heating:
+      name: "SubCooling (Heating)"
+    subcooling_cooling:
+      name: "SubCooling (Cooling)"
+    heating_liquid_line_temperature:
+      name: "Heating Liquid Line Temp"
+    refrigerant_leaving_air_temperature:
+      name: "Refrigerant Leaving Air Temp"
+    waterflow:
+      name: "Waterflow"
     discharge_pressure:
       name: "Discharge Pressure"
     suction_pressure:
       name: "Suction Pressure"
     loop_pressure:
       name: "Loop Pressure"
-    waterflow:
-      name: "Waterflow"
+    # Power & Electrical
     compressor_power:
       name: "Compressor Power"
     blower_power:
@@ -86,22 +109,62 @@ sensor:
       name: "Compressor Amps"
     blower_amps:
       name: "Blower Amps"
-    relative_humidity:
-      name: "Relative Humidity"
-    compressor_speed:
-      name: "Compressor Speed"
+    aux_heat_amps:
+      name: "Aux Heat Amps"
+    compressor_2_amps:
+      name: "Compressor 2 Amps"
     heat_of_extraction:
       name: "Heat of Extraction"
     heat_of_rejection:
       name: "Heat of Rejection"
-    fp1_temperature:
-      name: "FP1 Temperature"
-    fp2_temperature:
-      name: "FP2 Temperature"
-    subcooling:
-      name: "Subcooling"
-    superheat:
-      name: "Superheat"
+    # System Outputs
+    ecm_speed:
+      name: "ECM Blower Speed"
+    compressor_speed:
+      name: "Compressor Speed"
+    # VS Drive (operational/electrical)
+    vs_compressor_speed_requested:
+      name: "VS Compressor Speed Requested"
+    vs_compressor_power:
+      name: "VS Compressor Power"
+    vs_thermo_power:
+      name: "VS Thermo Power"
+    vs_eev2_open:
+      name: "VS EEV2 % Open"
+    vs_fan_speed:
+      name: "VS Fan Speed"
+    vs_line_voltage:
+      name: "VS Line Voltage"
+    vs_supply_voltage:
+      name: "VS Supply Voltage"
+    vs_udc_voltage:
+      name: "VS UDC Voltage"
+    # VS Drive Sensors (temperatures & pressures)
+    vs_drive_temperature:
+      name: "VS Drive Temperature"
+    vs_inverter_temperature:
+      name: "VS Inverter Temperature"
+    vs_compressor_ambient_temperature:
+      name: "VS Compressor Ambient Temp"
+    vs_discharge_temperature:
+      name: "VS Discharge Temperature"
+    vs_suction_temperature:
+      name: "VS Suction Temperature"
+    vs_entering_water_temperature:
+      name: "VS Entering Water Temp"
+    vs_sat_evap_discharge_temperature:
+      name: "VS Sat Evap Discharge Temp"
+    vs_superheat_temperature:
+      name: "VS Superheat Temperature"
+    vs_discharge_pressure:
+      name: "VS Discharge Pressure"
+    vs_suction_pressure:
+      name: "VS Suction Pressure"
+    # IZ2
+    iz2_outdoor_temperature:
+      name: "IZ2 Outdoor Temperature"
+    iz2_demand:
+      name: "IZ2 Demand"
 
 binary_sensor:
   - platform: waterfurnace
@@ -137,3 +200,7 @@ text_sensor:
       name: "Serial Number"
     system_mode:
       name: "System Mode"
+    outputs_at_lockout:
+      name: "Outputs at Lockout"
+    inputs_at_lockout:
+      name: "Inputs at Lockout"

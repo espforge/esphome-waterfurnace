@@ -18,8 +18,6 @@ ota:
 
 wifi:
 
-web_server:
-
 # Single zone (no IZ2):
 climate:
   - platform: waterfurnace

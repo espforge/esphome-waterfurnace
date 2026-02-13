@@ -274,9 +274,14 @@ int main(int argc, char *argv[]) {
          program == "ABCSPLVS");
   }
 
-  // Test 2: Thermostat ranges - uses get_thermostat_ranges() from registers.h
+  // Test 2: Core status + AWL thermostat/AXB ranges (simulates full AWL system)
   {
-    auto ranges = get_thermostat_ranges();
+    std::vector<std::pair<uint16_t, uint16_t>> ranges = {
+        {6, 1}, {19, 2}, {25, 7}, {344, 1}, {362, 1},   // Core ABC status
+    };
+    ranges.push_back({502, 1});   // AWL thermostat
+    ranges.push_back({745, 3});   // AWL thermostat setpoints
+    ranges.push_back({740, 3});   // AWL AXB + communicating
     auto values = read_ranges(sock, ranges);
     auto expected = expected_range_values(ranges);
     TEST("Thermostat ranges: values match", values == expected);
@@ -321,17 +326,21 @@ int main(int argc, char *argv[]) {
     TEST("  IZ2 removed", !check(values[6]));
   }
 
-  // Test 4: AXB ranges - uses get_axb_ranges()
+  // Test 4: AXB ranges
   {
-    auto ranges = get_axb_ranges();
+    std::vector<std::pair<uint16_t, uint16_t>> ranges = {
+        {400, 2}, {1103, 6}, {1109, 11}, {1124, 2}, {1134, 3},
+    };
     auto values = read_ranges(sock, ranges);
     auto expected = expected_range_values(ranges);
     TEST("AXB ranges: values match", values == expected);
   }
 
-  // Test 5: Power ranges - uses get_power_ranges()
+  // Test 5: Power ranges
   {
-    auto ranges = get_power_ranges();
+    std::vector<std::pair<uint16_t, uint16_t>> ranges = {
+        {16, 1}, {1146, 12}, {1164, 2},
+    };
     auto values = read_ranges(sock, ranges);
     auto expected = expected_range_values(ranges);
     TEST("Power ranges: values match", values == expected);
@@ -344,9 +353,12 @@ int main(int argc, char *argv[]) {
     TEST("  Total power = 3950W", total_watts == 3950);
   }
 
-  // Test 6: VS Drive - uses get_vs_drive_ranges()
+  // Test 6: VS Drive ranges
   {
-    auto ranges = get_vs_drive_ranges();
+    std::vector<std::pair<uint16_t, uint16_t>> ranges = {
+        {3000, 2}, {3027, 1}, {3220, 8}, {3322, 11},
+        {3422, 4}, {3522, 3}, {3808, 1}, {3903, 4},
+    };
     auto values = read_ranges(sock, ranges);
     auto expected = expected_range_values(ranges);
     TEST("VS Drive ranges: values match", values == expected);
@@ -356,9 +368,9 @@ int main(int argc, char *argv[]) {
   printf("\nFunction 66: Read Individual Registers (using build_read_registers_request)\n");
   printf("============================================================\n");
 
-  // Test: Thermostat config - uses get_thermostat_config_registers()
+  // Test: Thermostat config
   {
-    auto addrs = get_thermostat_config_registers();
+    std::vector<uint16_t> addrs = {12005, 12006};
     auto values = read_registers(sock, addrs);
     auto expected = expected_individual_values(addrs);
     TEST("Thermostat config: values match", values == expected);

@@ -56,7 +56,9 @@ BINARY_SENSOR_SCHEMAS = {
     CONF_AUX_HEAT_STAGE2: binary_sensor.binary_sensor_schema(
         icon="mdi:fire",
     ),
-    CONF_ACCESSORY: binary_sensor.binary_sensor_schema(),
+    CONF_ACCESSORY: binary_sensor.binary_sensor_schema(
+        icon="mdi:toggle-switch",
+    ),
     CONF_LOCKOUT: binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PROBLEM,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

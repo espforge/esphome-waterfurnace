@@ -38,6 +38,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CONNECTED): binary_sensor_comp.binary_sensor_schema(
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon="mdi:lan-connect",
             ),
             cv.Optional(
                 CONF_CONNECTED_TIMEOUT, default="30s"

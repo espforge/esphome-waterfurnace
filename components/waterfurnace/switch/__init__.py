@@ -37,3 +37,4 @@ async def to_code(config):
         cg.add(var.set_parent(parent))
         cg.add(var.set_register_address(400))
         cg.add(var.set_write_address(400))
+        cg.add(var.set_capability("axb"))

@@ -1,11 +1,41 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <utility>
 #include <vector>
 
 namespace esphome {
 namespace waterfurnace {
+
+// --- Capability gating ---
+// Each sensor declares a capability requirement; the hub filters listeners
+// whose capability is not met by the detected hardware.
+
+enum class RegisterCapability : uint8_t {
+  NONE,               // Always pollable (base system registers)
+  AWL_THERMOSTAT,     // Thermostat v3.0+ (502, 745-747, 12005-12006)
+  AWL_AXB,            // AXB v2.0+ (900)
+  AWL_COMMUNICATING,  // Thermostat v3.0+ OR IZ2 v2.0+ (741-742)
+  AXB,                // AXB present (1103-1119, 400-401, DHW)
+  REFRIGERATION,      // AXB + energy_monitor >= 1 (1109, 1124-1125, 1134, 1154-1157)
+  ENERGY,             // AXB + energy_monitor == 2 (16, 1146-1165)
+  VS_DRIVE,           // VS drive present (362, 1135-1136, 3000-3906)
+  IZ2,                // IZ2 with AWL v2.0+ (31000+)
+};
+
+/// Convert a Python-provided capability string to enum
+inline RegisterCapability capability_from_string(const char *str) {
+  if (strcmp(str, "awl_thermostat") == 0) return RegisterCapability::AWL_THERMOSTAT;
+  if (strcmp(str, "awl_axb") == 0) return RegisterCapability::AWL_AXB;
+  if (strcmp(str, "awl_communicating") == 0) return RegisterCapability::AWL_COMMUNICATING;
+  if (strcmp(str, "axb") == 0) return RegisterCapability::AXB;
+  if (strcmp(str, "refrigeration") == 0) return RegisterCapability::REFRIGERATION;
+  if (strcmp(str, "energy") == 0) return RegisterCapability::ENERGY;
+  if (strcmp(str, "vs_drive") == 0) return RegisterCapability::VS_DRIVE;
+  if (strcmp(str, "iz2") == 0) return RegisterCapability::IZ2;
+  return RegisterCapability::NONE;
+}
 
 // --- Register data type conversions ---
 
@@ -74,16 +104,16 @@ static constexpr uint16_t REG_IZ2_VERSION = 813;
 // --- System identification registers ---
 
 static constexpr uint16_t REG_ABC_VERSION = 2;       // HUNDREDTHS
-static constexpr uint16_t REG_ABC_PROGRAM = 88;      // 4-char string (2 registers)
-static constexpr uint16_t REG_MODEL_NUMBER = 92;     // 12-char string (6 registers)
-static constexpr uint16_t REG_SERIAL_NUMBER = 105;   // 5-char string (3 registers)
+static constexpr uint16_t REG_ABC_PROGRAM = 88;      // 8-char string (4 registers)
+static constexpr uint16_t REG_MODEL_NUMBER = 92;     // 24-char string (12 registers)
+static constexpr uint16_t REG_SERIAL_NUMBER = 105;   // 10-char string (5 registers)
 static constexpr uint16_t REG_IZ2_ZONE_COUNT = 483;
 
 // --- Blower/pump/compressor type registers ---
 
 static constexpr uint16_t REG_BLOWER_TYPE = 404;
 static constexpr uint16_t REG_PUMP_TYPE = 413;
-static constexpr uint16_t REG_COMPRESSOR_HZ = 412;
+static constexpr uint16_t REG_ENERGY_MONITOR = 412;    // 0=None, 1=Compressor Monitor, 2=Energy Monitor
 
 // Blower type values
 static constexpr uint16_t BLOWER_PSC = 0;
@@ -93,16 +123,20 @@ static constexpr uint16_t BLOWER_5SPD_460 = 3;
 
 // --- Status registers ---
 
+static constexpr uint16_t REG_COMPRESSOR_DELAY = 6;    // Compressor anti-short cycle delay (seconds; non-zero = waiting)
 static constexpr uint16_t REG_LINE_VOLTAGE = 16;
 static constexpr uint16_t REG_FP1_TEMP = 19;           // SIGNED_TENTHS - Cooling liquid line
 static constexpr uint16_t REG_FP2_TEMP = 20;           // SIGNED_TENTHS - Air coil temp
 static constexpr uint16_t REG_LAST_FAULT = 25;         // Bit 15 = lockout flag, bits 0-14 = fault code
 static constexpr uint16_t REG_LAST_LOCKOUT = 26;
+static constexpr uint16_t REG_OUTPUTS_AT_LOCKOUT = 27;  // Bitmask: system outputs at last lockout
+static constexpr uint16_t REG_INPUTS_AT_LOCKOUT = 28;   // Bitmask: system inputs at last lockout
 static constexpr uint16_t REG_SYSTEM_OUTPUTS = 30;     // Bitmask
-static constexpr uint16_t REG_SYSTEM_INPUTS = 31;      // Bitmask
-static constexpr uint16_t REG_STATUS1 = 344;
-static constexpr uint16_t REG_STATUS2 = 362;
-static constexpr uint16_t REG_DEMAND = 502;            // SIGNED_TENTHS
+static constexpr uint16_t REG_STATUS = 31;             // Bitmask: system inputs + LPS (0x80) + HPS (0x100)
+static constexpr uint16_t REG_ECM_SPEED = 344;         // Current blower ECM speed
+static constexpr uint16_t REG_ACTIVE_DEHUMIDIFY = 362; // Boolean: any non-zero value = active dehumidify
+static constexpr uint16_t REG_TSTAT_AMBIENT = 502;      // SIGNED_TENTHS - Ambient temperature
+static constexpr uint16_t REG_ENTERING_AIR_ABC = 567;   // SIGNED_TENTHS - Entering air (ABC fallback when AXB not AWL)
 
 // System output bits (register 30)
 static constexpr uint16_t OUTPUT_CC = 0x01;             // Compressor stage 1
@@ -115,6 +149,51 @@ static constexpr uint16_t OUTPUT_ACCESSORY = 0x200;
 static constexpr uint16_t OUTPUT_LOCKOUT = 0x400;
 static constexpr uint16_t OUTPUT_ALARM = 0x800;
 
+// System input bits (register 31)
+static constexpr uint16_t INPUT_Y1 = 0x01;
+static constexpr uint16_t INPUT_Y2 = 0x02;
+static constexpr uint16_t INPUT_W = 0x04;
+static constexpr uint16_t INPUT_O = 0x08;
+static constexpr uint16_t INPUT_G = 0x10;
+static constexpr uint16_t INPUT_DH_RH = 0x20;
+static constexpr uint16_t INPUT_EMERGENCY_SHUTDOWN = 0x40;
+static constexpr uint16_t INPUT_LPS = 0x80;              // Low Pressure Switch closed
+static constexpr uint16_t INPUT_HPS = 0x100;             // High Pressure Switch closed
+static constexpr uint16_t INPUT_LOAD_SHED = 0x200;
+
+// Bitmask-to-string helpers for lockout diagnostic registers
+struct BitLabel {
+  uint16_t mask;
+  const char *label;
+};
+
+static constexpr BitLabel OUTPUT_BITS[] = {
+    {OUTPUT_CC, "CC"},
+    {OUTPUT_CC2, "CC2"},
+    {OUTPUT_RV, "RV"},
+    {OUTPUT_BLOWER, "Blower"},
+    {OUTPUT_EH1, "EH1"},
+    {OUTPUT_EH2, "EH2"},
+    {OUTPUT_ACCESSORY, "Accessory"},
+    {OUTPUT_LOCKOUT, "Lockout"},
+    {OUTPUT_ALARM, "Alarm"},
+};
+static constexpr size_t OUTPUT_BITS_SIZE = sizeof(OUTPUT_BITS) / sizeof(OUTPUT_BITS[0]);
+
+static constexpr BitLabel INPUT_BITS[] = {
+    {INPUT_Y1, "Y1"},
+    {INPUT_Y2, "Y2"},
+    {INPUT_W, "W"},
+    {INPUT_O, "O"},
+    {INPUT_G, "G"},
+    {INPUT_DH_RH, "DH/RH"},
+    {INPUT_EMERGENCY_SHUTDOWN, "Emergency Shutdown"},
+    {INPUT_LPS, "LPS"},
+    {INPUT_HPS, "HPS"},
+    {INPUT_LOAD_SHED, "Load Shed"},
+};
+static constexpr size_t INPUT_BITS_SIZE = sizeof(INPUT_BITS) / sizeof(INPUT_BITS[0]);
+
 // --- Thermostat registers (single zone, AWL) ---
 
 static constexpr uint16_t REG_ENTERING_AIR = 740;       // SIGNED_TENTHS
@@ -122,7 +201,7 @@ static constexpr uint16_t REG_HUMIDITY = 741;            // UNSIGNED (%)
 static constexpr uint16_t REG_OUTDOOR_TEMP = 742;        // SIGNED_TENTHS
 static constexpr uint16_t REG_HEATING_SETPOINT = 745;    // TENTHS
 static constexpr uint16_t REG_COOLING_SETPOINT = 746;    // TENTHS
-static constexpr uint16_t REG_AMBIENT_TEMP = 747;        // SIGNED_TENTHS
+static constexpr uint16_t REG_AMBIENT_TEMP = 747;        // SIGNED_TENTHS - may read 0 when mode is OFF; prefer REG_TSTAT_AMBIENT (502)
 
 // Thermostat config registers (read)
 static constexpr uint16_t REG_FAN_CONFIG = 12005;        // Bit-packed fan mode
@@ -142,26 +221,26 @@ static constexpr uint16_t REG_AXB_INPUTS = 1103;        // Bitmask
 static constexpr uint16_t REG_AXB_OUTPUTS = 1104;       // Bitmask
 static constexpr uint16_t REG_BLOWER_AMPS = 1105;       // TENTHS
 static constexpr uint16_t REG_AUX_AMPS = 1106;          // TENTHS
-static constexpr uint16_t REG_COMPRESSOR_AMPS = 1107;   // TENTHS
-static constexpr uint16_t REG_AIR_COIL_AMPS = 1108;     // TENTHS
+static constexpr uint16_t REG_COMPRESSOR_1_AMPS = 1107; // TENTHS - Compressor stage 1 current
+static constexpr uint16_t REG_COMPRESSOR_2_AMPS = 1108; // TENTHS - Compressor stage 2 current
 
 // Performance registers (AXB)
 static constexpr uint16_t REG_LEAVING_AIR = 900;         // SIGNED_TENTHS
 static constexpr uint16_t REG_LEAVING_WATER = 1110;      // SIGNED_TENTHS
 static constexpr uint16_t REG_ENTERING_WATER = 1111;     // SIGNED_TENTHS
-static constexpr uint16_t REG_OUTDOOR_TEMP2 = 1109;      // SIGNED_TENTHS
-static constexpr uint16_t REG_SUPERHEAT_TEMP = 1112;     // SIGNED_TENTHS
+static constexpr uint16_t REG_HEATING_LIQUID_LINE = 1109; // SIGNED_TENTHS - Heating liquid line temperature
+static constexpr uint16_t REG_REFRIG_LEAVING_AIR = 1112; // SIGNED_TENTHS - Leaving air temperature (refrigeration)
 static constexpr uint16_t REG_SUCTION_TEMP = 1113;       // SIGNED_TENTHS
 static constexpr uint16_t REG_DHW_TEMP = 1114;           // SIGNED_TENTHS
 static constexpr uint16_t REG_DISCHARGE_PRESSURE = 1115; // TENTHS (psi)
 static constexpr uint16_t REG_SUCTION_PRESSURE = 1116;   // TENTHS (psi)
 static constexpr uint16_t REG_WATERFLOW = 1117;          // TENTHS (gpm)
 static constexpr uint16_t REG_LOOP_PRESSURE = 1119;      // TENTHS (psi)
-static constexpr uint16_t REG_SUBCOOLING = 1124;         // SIGNED_TENTHS
+static constexpr uint16_t REG_SAT_EVAP_TEMP = 1124;      // SIGNED_TENTHS - Saturated evaporator temperature
 static constexpr uint16_t REG_SUPERHEAT = 1125;          // SIGNED_TENTHS
-static constexpr uint16_t REG_APPROACH = 1134;           // SIGNED_TENTHS
-static constexpr uint16_t REG_EEV_OPEN = 1135;           // SIGNED_TENTHS
-static constexpr uint16_t REG_EEV_CALC = 1136;           // SIGNED_TENTHS
+static constexpr uint16_t REG_SAT_COND_TEMP = 1134;      // SIGNED_TENTHS - Saturated Condensor Discharge Temperature
+static constexpr uint16_t REG_SUBCOOLING_HEAT = 1135;    // SIGNED_TENTHS - SubCooling (heating mode)
+static constexpr uint16_t REG_SUBCOOLING_COOL = 1136;    // SIGNED_TENTHS - SubCooling (cooling mode)
 
 // --- Power/energy registers ---
 
@@ -173,10 +252,10 @@ static constexpr uint16_t REG_AUX_HEAT_WATTS_HI = 1150;
 static constexpr uint16_t REG_AUX_HEAT_WATTS_LO = 1151;
 static constexpr uint16_t REG_TOTAL_WATTS_HI = 1152;
 static constexpr uint16_t REG_TOTAL_WATTS_LO = 1153;
-static constexpr uint16_t REG_HEAT_EXTRACTION_HI = 1154;
-static constexpr uint16_t REG_HEAT_EXTRACTION_LO = 1155;
-static constexpr uint16_t REG_HEAT_REJECTION_HI = 1156;
-static constexpr uint16_t REG_HEAT_REJECTION_LO = 1157;
+static constexpr uint16_t REG_HEAT_OF_EXTRACTION_HI = 1154; // INT32 (Btuh)
+static constexpr uint16_t REG_HEAT_OF_EXTRACTION_LO = 1155;
+static constexpr uint16_t REG_HEAT_OF_REJECTION_HI = 1156;  // INT32 (Btuh)
+static constexpr uint16_t REG_HEAT_OF_REJECTION_LO = 1157;
 static constexpr uint16_t REG_PUMP_WATTS_HI = 1164;
 static constexpr uint16_t REG_PUMP_WATTS_LO = 1165;
 
@@ -184,14 +263,34 @@ static constexpr uint16_t REG_PUMP_WATTS_LO = 1165;
 
 static constexpr uint16_t REG_VS_SPEED_DESIRED = 3000;
 static constexpr uint16_t REG_VS_SPEED_ACTUAL = 3001;
+static constexpr uint16_t REG_VS_SPEED_REQUESTED = 3027; // Compressor speed (requested by ABC)
 static constexpr uint16_t REG_VS_DRIVE_STATUS = 3220;
+static constexpr uint16_t REG_VS_EEV2_OPEN = 3808;       // EEV2 % open (VS systems)
 static constexpr uint16_t REG_VS_INVERTER_TEMP = 3522;  // SIGNED_TENTHS
 static constexpr uint16_t REG_VS_FAN_SPEED = 3524;
-static constexpr uint16_t REG_VS_DISCHARGE_TEMP = 3325; // SIGNED_TENTHS
-static constexpr uint16_t REG_VS_DISCHARGE_PRESS = 3322; // TENTHS
-static constexpr uint16_t REG_VS_SUCTION_PRESS = 3323;   // TENTHS
+static constexpr uint16_t REG_VS_DISCHARGE_PRESS = 3322;  // TENTHS
+static constexpr uint16_t REG_VS_SUCTION_PRESS = 3323;    // TENTHS
+static constexpr uint16_t REG_VS_DISCHARGE_TEMP = 3325;   // SIGNED_TENTHS
+static constexpr uint16_t REG_VS_COMP_AMBIENT_TEMP = 3326; // SIGNED_TENTHS - Compressor ambient temperature
+static constexpr uint16_t REG_VS_DRIVE_TEMP = 3327;       // SIGNED_TENTHS
+static constexpr uint16_t REG_VS_ENTERING_WATER_TEMP = 3330; // SIGNED_TENTHS - Entering water temperature
+static constexpr uint16_t REG_VS_LINE_VOLTAGE = 3331;     // UNSIGNED (V)
+static constexpr uint16_t REG_VS_THERMO_POWER = 3332;     // UNSIGNED (%)
+static constexpr uint16_t REG_VS_COMP_WATTS_HI = 3422;    // UINT32 (W)
+static constexpr uint16_t REG_VS_COMP_WATTS_LO = 3423;
+static constexpr uint16_t REG_VS_SUPPLY_VOLTAGE_HI = 3424; // UINT32 (V)
+static constexpr uint16_t REG_VS_SUPPLY_VOLTAGE_LO = 3425;
+static constexpr uint16_t REG_VS_UDC_VOLTAGE = 3523;      // UNSIGNED (V)
+
+// VS Drive refrigerant sensors (3900 range)
+static constexpr uint16_t REG_VS_SUCTION_TEMP = 3903;     // SIGNED_TENTHS - VS Drive suction temperature
+static constexpr uint16_t REG_VS_SAT_EVAP_DISCHARGE_TEMP = 3905; // SIGNED_TENTHS - VS Drive saturated evaporator discharge temp
+static constexpr uint16_t REG_VS_SUPERHEAT_TEMP = 3906;   // SIGNED_TENTHS - VS Drive superheat temperature
 
 // --- IZ2 zone registers ---
+
+static constexpr uint16_t REG_IZ2_OUTDOOR_TEMP = 31003;  // SIGNED_TENTHS - IZ2 outdoor temperature
+static constexpr uint16_t REG_IZ2_DEMAND = 31005;        // UNSIGNED - High byte: fan demand, Low byte: unit demand
 
 // Read registers: base + (zone-1)*3
 static constexpr uint16_t REG_IZ2_ZONE_BASE = 31007;
@@ -226,6 +325,11 @@ static constexpr uint16_t FAN_INTERMITTENT = 2;
 // --- VS Drive program names ---
 // Register 88 decoded: "ABCVSP", "ABCVSPR", "ABCSPLVS" indicate VS drive
 
+// --- Register query breakpoints ---
+// The ABC requires separate queries across these boundaries
+static constexpr uint16_t REGISTER_BREAKPOINT_1 = 12100;
+static constexpr uint16_t REGISTER_BREAKPOINT_2 = 12500;
+
 // --- Fault codes ---
 
 struct FaultInfo {
@@ -234,6 +338,7 @@ struct FaultInfo {
 };
 
 static constexpr FaultInfo FAULT_TABLE[] = {
+    // ABC/AXB faults
     {1, "Input Error"},
     {2, "High Pressure"},
     {3, "Low Pressure"},
@@ -250,15 +355,38 @@ static constexpr FaultInfo FAULT_TABLE[] = {
     {15, "Hot Water Limit"},
     {16, "VS Pump Error"},
     {17, "Communicating Thermostat Error"},
-    {18, "Non-Critical Comms Error"},
-    {19, "Critical Comms Error"},
+    {18, "Non-Critical Communications Error"},
+    {19, "Critical Communications Error"},
     {21, "Low Loop Pressure"},
     {22, "Communicating ECM Error"},
     {23, "HA Alarm 1"},
     {24, "HA Alarm 2"},
     {25, "AxbEev Error"},
+    // VS Drive faults
     {41, "High Drive Temp"},
     {42, "High Discharge Temp"},
+    {43, "Low Suction Pressure"},
+    {44, "Low Condensing Pressure"},
+    {45, "High Condensing Pressure"},
+    {46, "Output Power Limit"},
+    {47, "EEV ID Comm Error"},
+    {48, "EEV OD Comm Error"},
+    {49, "Cabinet Temperature Sensor"},
+    {51, "Discharge Temp Sensor"},
+    {52, "Suction Pressure Sensor"},
+    {53, "Condensing Pressure Sensor"},
+    {54, "Low Supply Voltage"},
+    {55, "Out of Envelope"},
+    {56, "Drive Over Current"},
+    {57, "Drive Over/Under Voltage"},
+    {58, "High Drive Temp"},
+    {59, "Internal Drive Error"},
+    {61, "Multiple Safe Mode"},
+    // EEV2 faults
+    {71, "Loss of Charge"},
+    {72, "Suction Temperature Sensor"},
+    {73, "Leaving Air Temperature Sensor"},
+    {74, "Maximum Operating Pressure"},
     {99, "System Reset"},
 };
 
@@ -283,7 +411,7 @@ inline std::vector<std::pair<uint16_t, uint16_t>> get_system_id_ranges() {
       {105, 5},      // Serial number (10 chars = 5 registers)
       {400, 2},      // DHW enable, DHW setpoint
       {404, 1},      // Blower type
-      {412, 2},      // Compressor Hz, pump type
+      {412, 2},      // Energy monitor type, pump type
   };
 }
 
@@ -301,74 +429,14 @@ inline std::vector<std::pair<uint16_t, uint16_t>> get_component_detect_ranges() 
   };
 }
 
-// Group 1: Thermostat/status (always poll)
-inline std::vector<std::pair<uint16_t, uint16_t>> get_thermostat_ranges() {
-  return {
-      {19, 2},       // FP1, FP2 temps
-      {25, 2},       // Last fault, last lockout
-      {30, 2},       // System outputs, system inputs
-      {502, 1},      // Demand
-      {740, 3},      // Entering air, humidity, outdoor temp
-      {745, 3},      // Heating SP, cooling SP, ambient
-  };
-}
-
-// Group 1b: Thermostat config (if AWL thermostat)
-inline std::vector<uint16_t> get_thermostat_config_registers() {
-  return {12005, 12006};
-}
-
-// Group 2: AXB performance (if AXB present)
-inline std::vector<std::pair<uint16_t, uint16_t>> get_axb_ranges() {
-  return {
-      {400, 2},      // DHW enable, DHW setpoint
-      {900, 1},      // Leaving air temp
-      {1103, 6},     // AXB inputs through air coil amps
-      {1109, 11},    // Outdoor2, LWT, EWT, superheat, suction, DHW, discharge/suction press, waterflow, 1118, loop press
-      {1124, 2},     // Subcooling, superheat
-      {1134, 3},     // Approach, EEV open, EEV calc
-  };
-}
-
-// Group 3: Power (if energy monitoring)
-inline std::vector<std::pair<uint16_t, uint16_t>> get_power_ranges() {
-  return {
-      {16, 1},       // Line voltage
-      {1146, 12},    // Compressor/blower/aux/total watts, heat extraction/rejection
-      {1164, 2},     // Pump watts
-  };
-}
-
-// Group 4: VS Drive (if VS)
-inline std::vector<std::pair<uint16_t, uint16_t>> get_vs_drive_ranges() {
-  return {
-      {3000, 2},     // Speed desired, actual
-      {3220, 8},     // VS drive status block
-      {3322, 9},     // VS pressures and temps
-      {3522, 1},     // Inverter temp
-      {3524, 1},     // Fan speed
-  };
-}
-
-// IZ2 zone read registers for N zones
-inline std::vector<std::pair<uint16_t, uint16_t>> get_iz2_ranges(uint8_t zone_count) {
-  std::vector<std::pair<uint16_t, uint16_t>> ranges;
-  if (zone_count > 0) {
-    // Zone ambient/config registers: 31007 through 31007 + zone_count*3 - 1
-    ranges.push_back({31007, static_cast<uint16_t>(zone_count * 3)});
-    // Zone config3 registers: 31200 through 31200 + zone_count*3 - 1
-    ranges.push_back({31200, static_cast<uint16_t>(zone_count * 3)});
-  }
-  return ranges;
-}
-
 // --- IZ2 zone register extraction helpers ---
 
 // Extract mode from zone_configuration2 register
-// IZ2 zones use 2 bits for mode (values 0-3: off/auto/cool/heat)
-// E-heat is not readable from IZ2 zone config; detected via system outputs (register 30)
+// Uses 3-bit mask to support E-Heat (mode 4) detection on IZ2 zones.
+// DO NOT change to 0x03 — the 3-bit mask is required for E-Heat and was
+// confirmed working in commit d3e389c.
 inline uint8_t iz2_extract_mode(uint16_t config2) {
-  return (config2 >> 8) & 0x03;
+  return (config2 >> 8) & 0x07;
 }
 
 // Extract fan mode from zone_configuration1 register

@@ -17,12 +17,16 @@ CONF_CURRENT_FAULT = "current_fault"
 CONF_MODEL_NUMBER = "model_number"
 CONF_SERIAL_NUMBER = "serial_number"
 CONF_SYSTEM_MODE = "system_mode"
+CONF_OUTPUTS_AT_LOCKOUT = "outputs_at_lockout"
+CONF_INPUTS_AT_LOCKOUT = "inputs_at_lockout"
 
 TEXT_SENSOR_TYPES = {
     CONF_CURRENT_FAULT: "fault",
     CONF_MODEL_NUMBER: "model",
     CONF_SERIAL_NUMBER: "serial",
     CONF_SYSTEM_MODE: "mode",
+    CONF_OUTPUTS_AT_LOCKOUT: "outputs_at_lockout",
+    CONF_INPUTS_AT_LOCKOUT: "inputs_at_lockout",
 }
 
 TEXT_SENSOR_SCHEMAS = {
@@ -40,6 +44,14 @@ TEXT_SENSOR_SCHEMAS = {
     ),
     CONF_SYSTEM_MODE: text_sensor.text_sensor_schema(
         icon="mdi:hvac",
+    ),
+    CONF_OUTPUTS_AT_LOCKOUT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon="mdi:alert-circle-outline",
+    ),
+    CONF_INPUTS_AT_LOCKOUT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon="mdi:alert-circle-outline",
     ),
 }
 

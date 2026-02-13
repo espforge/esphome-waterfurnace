@@ -21,8 +21,9 @@ void WaterFurnace::loop() {}
 void WaterFurnace::dump_config() {}
 
 void WaterFurnace::register_listener(uint16_t register_addr,
-                                      std::function<void(uint16_t)> callback) {
-  listeners_.push_back({register_addr, std::move(callback)});
+                                      std::function<void(uint16_t)> callback,
+                                      RegisterCapability capability) {
+  listeners_.push_back({register_addr, std::move(callback), capability});
 }
 
 void WaterFurnace::write_register(uint16_t addr, uint16_t value) {
@@ -56,6 +57,9 @@ void WaterFurnace::process_pending_writes_() {}
 void WaterFurnace::read_system_id_() {}
 void WaterFurnace::detect_components_() {}
 void WaterFurnace::build_poll_groups_() {}
+bool WaterFurnace::has_capability_(RegisterCapability) const { return true; }
+std::vector<std::pair<uint16_t, uint16_t>> WaterFurnace::merge_to_ranges(
+    const std::vector<uint16_t> &, uint16_t) { return {}; }
 void WaterFurnace::update_connected_(bool) {}
 
 std::string WaterFurnace::decode_string_(const std::map<uint16_t, uint16_t> &,

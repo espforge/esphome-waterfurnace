@@ -3,7 +3,7 @@ CXXFLAGS := -std=c++17 -Wall -I mocks -I ../..
 CXXFLAGS += $(shell pkg-config --cflags gtest 2>/dev/null)
 LDFLAGS  := $(shell pkg-config --libs gtest gtest_main 2>/dev/null || echo "-lgtest -lgtest_main -lpthread")
 
-TESTS := test_protocol test_sensor test_binary_sensor test_text_sensor test_switch test_climate
+TESTS := test_protocol test_sensor test_binary_sensor test_text_sensor test_switch test_climate test_poll_groups
 
 .PHONY: test clean
 
@@ -14,6 +14,7 @@ $(TESTS): %: %.cpp hub_stubs.h mocks/esphome_types.h
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 # test_protocol doesn't use hub_stubs.h but listing it as dependency is harmless
+# test_poll_groups includes waterfurnace.cpp directly (not hub_stubs.h) but the dependency is harmless
 
 clean:
 	rm -f $(TESTS)

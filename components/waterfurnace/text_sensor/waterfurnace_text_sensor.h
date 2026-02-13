@@ -21,11 +21,20 @@ class WaterFurnaceTextSensor : public text_sensor::TextSensor, public Component 
  protected:
   void on_fault_register_(uint16_t value);
   void on_system_outputs_(uint16_t value);
+  void on_active_dehumidify_(uint16_t value);
+  void on_compressor_delay_(uint16_t value);
+  void compute_system_mode_();
   void publish_state_dedup_(const std::string &state);
 
   WaterFurnace *parent_{nullptr};
   std::string sensor_type_;
   std::string last_published_state_;
+
+  // Cached register values for system mode computation
+  uint16_t system_outputs_{0};
+  uint16_t active_dehumidify_{0};
+  uint16_t compressor_delay_{0};
+  bool has_outputs_{false};
 };
 
 }  // namespace waterfurnace

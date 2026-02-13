@@ -34,17 +34,28 @@ The waterfurnace_aurora gem's register documentation and protocol details were i
 
 The Waveshare board handles DE (direction enable) automatically via the ESP32-S3's UART RS-485 half-duplex mode. No `flow_control_pin` configuration is needed unless you're using a different board.
 
-### AID Port Wiring (RJ-45, TIA-568-B)
+### AID Port Wiring (RJ-45)
 
-| RJ-45 Pin | Wire Color    | Signal     |
-|-----------|---------------|------------|
-| 1         | White-Orange  | RS-485 A+  |
-| 2         | Orange        | RS-485 B-  |
-| 3         | White-Green   | RS-485 A+  |
-| 4         | Blue          | RS-485 B-  |
-| 5-8       | -             | 24VAC (DO NOT CONNECT) |
+A standard Ethernet cable can be used to connect the AID port to your RS-485 adapter. Only pins 1-4 (data) need to be connected; pins 5-8 carry 24VAC and should not be connected to your device.
 
-**WARNING:** Pins 5-8 carry 24VAC. Do not connect these to data or ground lines. Doing so risks blowing the 3A fuse or damaging the ABC board.
+| RJ-45 Pin | Signal          | Recommended Color | Notes |
+|-----------|-----------------|-------------------|-------|
+| 1         | RS-485 A+       | Orange-White      | |
+| 2         | RS-485 B-       | Orange            | |
+| 3         | RS-485 A+       | Green-White       | |
+| 4         | RS-485 B-       | Green             | |
+| 5         | 24VAC R (hot)   | Blue-White        | **DO NOT CONNECT** |
+| 6         | 24VAC C (common)| Blue              | **DO NOT CONNECT** |
+| 7         | 24VAC R (hot)   | Brown-White       | **DO NOT CONNECT** |
+| 8         | 24VAC C (common)| Brown             | **DO NOT CONNECT** |
+
+If making a custom cable, the color code above keeps each signal on its own twisted pair: A+ on the white-stripe wires (pins 1, 3) and B- on the solid wires (pins 2, 4), with 24VAC R and C each on their own pairs.
+
+> **WARNING:** Pins 5-8 carry 24VAC. Do not connect these to data or ground lines. Doing so risks blowing the 3A fuse or damaging the ABC board. Please note that all modifications are performed at your own risk; the author assumes no liability for hardware damage.
+
+### Powering from the AID Port
+
+The 24VAC on pins 5-8 can be used to power the ESP32 with a [24VAC to 12VDC converter](https://www.amazon.com/UHPPOTE-AC16-28V-Convertor-Surveillance-Security/dp/B01MDPAEMZ/), eliminating the need for a separate power supply. The Waveshare board accepts 7-36V DC input.
 
 ### RS-485 Adapter Note
 
@@ -67,6 +78,8 @@ After flashing, you'll be prompted to enter your WiFi credentials. The device us
 
 If you use the ESPHome Dashboard, adopt the device after it connects to your network. It will automatically import the configuration from this repository.
 
+After adopting, add a climate section to your device YAML to enable thermostat control (see [Adding Climate Control](#adding-climate-control) below).
+
 ### Manual ESPHome Configuration
 
 Reference this repository as a remote external component:
@@ -79,12 +92,20 @@ external_components:
       ref: main
 ```
 
-See `waterfurnace-esp32-s3.yaml` for a complete example configuration.
+See `waterfurnace-esp32-s3.yaml` and `waterfurnace-esp32-s3.factory.yaml` for complete example configurations. You will also need to add a climate section (see [Adding Climate Control](#adding-climate-control) below).
 
-### Customizing (IZ2 Multi-Zone, etc.)
+### Adding Climate Control
 
-After adopting the device in the ESPHome Dashboard, you'll have a local YAML file that imports the base config via `packages:`. Add overrides directly in that file. For example, to configure IZ2 multi-zone, add additional climate entries:
+Add a climate section to your device YAML to enable thermostat control.
 
+**Single zone (no IZ2):**
+```yaml
+climate:
+  - platform: waterfurnace
+    name: "Heat Pump"
+```
+
+**IZ2 multi-zone:**
 ```yaml
 climate:
   - platform: waterfurnace
@@ -95,13 +116,13 @@ climate:
     zone: 2
 ```
 
-ESPHome merges list sections, so your additional entries are appended to the base config's climate list.
+Up to 6 zones are supported. The component auto-detects whether IZ2 is installed.
 
 ## Supported Features
 
 ### Climate
 - Single zone and IZ2 multi-zone (up to 6 zones, auto-detected)
-- Modes: Off, Heat, Cool, Auto (Heat/Cool), Emergency Heat (as Boost preset)
+- Modes: Off, Heat, Cool, Auto (Heat/Cool), Emergency Heat (E-Heat custom preset, zone 1 only)
 - Fan modes: Auto, Continuous, Intermittent
 - Two-point setpoints (heating + cooling)
 
@@ -136,38 +157,6 @@ On startup, the hub reads component status registers to detect installed equipme
 
 Polling groups are automatically configured based on detected components.
 
-## Testing
+## Development & Testing
 
-Unit tests and integration tests are in `tests/`. The integration tests run the actual C++ protocol code against the [waterfurnace_aurora](https://github.com/ccutrer/waterfurnace_aurora) Ruby gem's ModBus server via Docker. See [tests/README.md](tests/README.md) for details.
-
-```sh
-# Unit tests (just needs g++)
-cd tests && g++ -std=c++17 -I../components/waterfurnace -o test_protocol test_protocol.cpp ../components/waterfurnace/protocol.cpp && ./test_protocol
-
-# Integration tests (needs Docker)
-cd tests && docker compose up --build --abort-on-container-exit
-```
-
-## Development
-
-### Local Development
-
-For local development, create a `secrets.yaml` in the project root with your WiFi credentials, then use the dev config in `tests/`:
-
-```sh
-# Run all tests (unit, integration, config validation, compile)
-tests/run_tests.sh
-
-# Or compile and flash directly
-cd tests && esphome run waterfurnace-test.yaml
-```
-
-The `tests/waterfurnace-test.yaml` overrides the component source to use local files via the `component_source` substitution.
-
-### Release & Deployment
-
-See **[RELEASES.md](RELEASES.md)** for complete documentation on:
-- Creating releases
-- Testing on a fork
-- CI/CD workflows
-- Troubleshooting deployments
+See **[DEVELOPMENT.md](DEVELOPMENT.md)** for local development, testing, and release documentation.

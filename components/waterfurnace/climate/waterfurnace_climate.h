@@ -34,6 +34,9 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
   void on_iz2_config1_(uint16_t value);
   void on_iz2_config2_(uint16_t value);
 
+  // Helper to convert °F to raw write value (tenths of °F for both thermostat and IZ2)
+  uint16_t temp_f_to_raw_(float temp_f) const;
+
   // Helper to get write register addresses
   uint16_t get_mode_write_reg_() const;
   uint16_t get_heating_sp_write_reg_() const;
@@ -42,12 +45,22 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
 
   void publish_state_if_changed_();
 
+  // Check if a write category is in cooldown (ignore stale read-backs)
+  bool in_cooldown_(uint32_t last_write) const;
+
   WaterFurnace *parent_{nullptr};
   uint8_t zone_{1};  // 1-6: zone 1 auto-detects thermostat vs IZ2
 
   // Cached IZ2 config registers for extracting packed values
   uint16_t iz2_config1_{0};
   uint16_t iz2_config2_{0};
+
+  // Write cooldown timestamps (ignore read-backs for recently written values)
+  static constexpr uint32_t WRITE_COOLDOWN_MS = 10000;
+  uint32_t last_mode_write_{0};
+  uint32_t last_heating_sp_write_{0};
+  uint32_t last_cooling_sp_write_{0};
+  uint32_t last_fan_write_{0};
 
   // Change detection for publish_state dedup
   float last_current_temp_{NAN};

@@ -28,6 +28,9 @@ using optional = std::optional<T>;
 #define ESP_LOGE(tag, fmt, ...)
 #define ESP_LOGV(tag, fmt, ...)
 #define YESNO(x) ((x) ? "YES" : "NO")
+#define LOG_PIN(prefix, pin)
+
+inline std::string format_hex_pretty(const std::vector<uint8_t> &v) { return ""; }
 
 namespace setup_priority {
 static constexpr float HARDWARE = 100.0f;
@@ -172,6 +175,7 @@ class ClimateCall {
   optional<ClimateMode> get_mode() const { return mode_; }
   optional<ClimateFanMode> get_fan_mode() const { return fan_mode_; }
   optional<ClimatePreset> get_preset() const { return preset_; }
+  optional<float> get_target_temperature() const { return target_; }
   optional<float> get_target_temperature_low() const { return target_low_; }
   optional<float> get_target_temperature_high() const { return target_high_; }
   bool has_custom_fan_mode() const { return custom_fan_mode_.has_value(); }
@@ -182,6 +186,7 @@ class ClimateCall {
   ClimateCall &set_mode(ClimateMode mode) { mode_ = mode; return *this; }
   ClimateCall &set_fan_mode(ClimateFanMode mode) { fan_mode_ = mode; return *this; }
   ClimateCall &set_preset(ClimatePreset preset) { preset_ = preset; return *this; }
+  ClimateCall &set_target_temperature(float v) { target_ = v; return *this; }
   ClimateCall &set_target_temperature_low(float v) { target_low_ = v; return *this; }
   ClimateCall &set_target_temperature_high(float v) { target_high_ = v; return *this; }
   ClimateCall &set_custom_fan_mode(const std::string &mode) { custom_fan_mode_ = mode; return *this; }
@@ -191,6 +196,7 @@ class ClimateCall {
   optional<ClimateMode> mode_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimatePreset> preset_;
+  optional<float> target_;
   optional<float> target_low_;
   optional<float> target_high_;
   optional<std::string> custom_fan_mode_;
@@ -201,6 +207,7 @@ class Climate : public EntityBase {
  public:
   ClimateMode mode{CLIMATE_MODE_OFF};
   float current_temperature{NAN};
+  float target_temperature{NAN};
   float target_temperature_low{NAN};
   float target_temperature_high{NAN};
   optional<ClimateFanMode> fan_mode{};

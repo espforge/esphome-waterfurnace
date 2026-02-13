@@ -21,6 +21,7 @@ namespace waterfurnace {
 struct RegisterListener {
   uint16_t address;
   std::function<void(uint16_t)> callback;
+  RegisterCapability capability{RegisterCapability::NONE};
 };
 
 class WaterFurnace : public PollingComponent, public uart::UARTDevice
@@ -36,7 +37,8 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Listener registration (called by child entities during their setup)
-  void register_listener(uint16_t register_addr, std::function<void(uint16_t)> callback);
+  void register_listener(uint16_t register_addr, std::function<void(uint16_t)> callback,
+                          RegisterCapability capability = RegisterCapability::NONE);
 
   // Write interface (called by climate/switch entities)
   void write_register(uint16_t addr, uint16_t value);
@@ -46,7 +48,7 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { connected_sensor_ = sensor; }
   void set_connected_timeout(uint32_t timeout) { connected_timeout_ = timeout; }
 
-  // Setup completion status (true after build_poll_groups_ completes)
+  // Setup completion status (true after component detection completes)
   bool is_setup_complete() const { return setup_complete_; }
 
   // Deferred callback for child entities that need hub detection results
@@ -64,6 +66,7 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   bool has_axb() const { return has_axb_; }
   bool has_vs_drive() const { return has_vs_drive_; }
   bool has_energy_monitoring() const { return has_energy_monitoring_; }
+  bool has_refrigeration_monitoring() const { return has_refrigeration_monitoring_; }
   uint8_t iz2_zone_count() const { return iz2_zone_count_; }
 
   // System info
@@ -73,6 +76,10 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
 
   // Register cache access (for entities that need multi-register values)
   bool get_register(uint16_t addr, uint16_t &value) const;
+
+  // Merge sorted unique addresses into {start, count} ranges (gap ≤ max_gap)
+  static std::vector<std::pair<uint16_t, uint16_t>> merge_to_ranges(
+      const std::vector<uint16_t> &sorted_addrs, uint16_t max_gap = 8);
 
  protected:
   // Protocol communication
@@ -88,6 +95,9 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   void read_system_id_();
   void detect_components_();
   void build_poll_groups_();
+
+  // Capability check: returns true if the listener's capability is satisfied by detected hardware
+  bool has_capability_(RegisterCapability cap) const;
 
   // Dispatch register values to listeners
   void dispatch_register_(uint16_t addr, uint16_t value);
@@ -136,6 +146,7 @@ class WaterFurnace : public PollingComponent, public uart::UARTDevice
   bool has_axb_{false};
   bool has_vs_drive_{false};
   bool has_energy_monitoring_{false};
+  bool has_refrigeration_monitoring_{false};
   bool has_aoc_{false};
   bool has_moc_{false};
   uint8_t iz2_zone_count_{0};

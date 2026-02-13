@@ -8,23 +8,24 @@ namespace waterfurnace {
 static const char *const TAG = "waterfurnace.sensor";
 
 void WaterFurnaceSensor::setup() {
+  auto cap = capability_from_string(this->capability_.c_str());
   if (this->is_32bit_) {
     // 32-bit value: register hi word at address, lo word at address+1
     this->parent_->register_listener(this->register_address_,
-                                      [this](uint16_t v) { this->on_register_value_hi_(v); });
+                                      [this](uint16_t v) { this->on_register_value_hi_(v); }, cap);
     this->parent_->register_listener(this->register_address_ + 1,
-                                      [this](uint16_t v) { this->on_register_value_(v); });
+                                      [this](uint16_t v) { this->on_register_value_(v); }, cap);
   } else {
     this->parent_->register_listener(this->register_address_,
-                                      [this](uint16_t v) { this->on_register_value_(v); });
+                                      [this](uint16_t v) { this->on_register_value_(v); }, cap);
   }
 }
 
 void WaterFurnaceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "WaterFurnace Sensor '%s':", this->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Register: %u (type: %s, 32bit: %s)",
+  ESP_LOGCONFIG(TAG, "  Register: %u (type: %s, 32bit: %s, capability: %s)",
                 this->register_address_, this->register_type_.c_str(),
-                YESNO(this->is_32bit_));
+                YESNO(this->is_32bit_), this->capability_.c_str());
 }
 
 void WaterFurnaceSensor::on_register_value_hi_(uint16_t value) {

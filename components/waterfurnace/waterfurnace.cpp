@@ -2,6 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+
 #ifdef USE_API_CUSTOM_SERVICES
 #include "esphome/components/api/custom_api_device.h"
 #endif
@@ -138,6 +140,7 @@ void WaterFurnace::dump_config() {
   ESP_LOGCONFIG(TAG, "  IZ2: %s (zones: %d, AWL: %s)",
                 YESNO(this->has_iz2_), this->iz2_zone_count_, YESNO(this->awl_iz2_));
   ESP_LOGCONFIG(TAG, "  VS Drive: %s", YESNO(this->has_vs_drive_));
+  ESP_LOGCONFIG(TAG, "  Refrigeration Monitoring: %s", YESNO(this->has_refrigeration_monitoring_));
   ESP_LOGCONFIG(TAG, "  Energy Monitoring: %s", YESNO(this->has_energy_monitoring_));
   if (this->flow_control_pin_ != nullptr) {
     LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
@@ -147,8 +150,9 @@ void WaterFurnace::dump_config() {
   ESP_LOGCONFIG(TAG, "  Registered listeners: %d", this->listeners_.size());
 }
 
-void WaterFurnace::register_listener(uint16_t register_addr, std::function<void(uint16_t)> callback) {
-  this->listeners_.push_back({register_addr, std::move(callback)});
+void WaterFurnace::register_listener(uint16_t register_addr, std::function<void(uint16_t)> callback,
+                                      RegisterCapability capability) {
+  this->listeners_.push_back({register_addr, std::move(callback), capability});
 }
 
 void WaterFurnace::write_register(uint16_t addr, uint16_t value) {
@@ -282,8 +286,7 @@ void WaterFurnace::process_response_(const std::vector<uint8_t> &frame) {
     ESP_LOGW(TAG, "Error response: func=0x%02X error=0x%02X", func_code, error_code);
 
     // If we're in setup, go to error backoff
-    if (this->state_ == State::WAITING_RESPONSE &&
-        (this->model_number_.empty() || this->poll_groups_.empty())) {
+    if (this->state_ == State::WAITING_RESPONSE && !this->setup_complete_) {
       this->error_backoff_until_ = millis() + ERROR_BACKOFF_TIME;
       this->state_ = State::ERROR_BACKOFF;
     } else {
@@ -396,8 +399,14 @@ void WaterFurnace::process_response_(const std::vector<uint8_t> &frame) {
       this->awl_axb_ = this->has_axb_ && axb_ver >= 2.0f;
       this->awl_iz2_ = this->has_iz2_ && iz2_ver >= 2.0f;
 
-      // Energy monitoring available if AXB present
-      this->has_energy_monitoring_ = this->has_axb_;
+      // Refrigeration monitoring requires AXB + energy monitor type >= 1 (register 412)
+      // Energy monitoring requires AXB + energy monitor type == 2 (register 412)
+      {
+        auto em_it = this->registers_.find(REG_ENERGY_MONITOR);
+        uint16_t energy_monitor_type = (em_it != this->registers_.end()) ? em_it->second : 0;
+        this->has_refrigeration_monitoring_ = this->has_axb_ && energy_monitor_type >= 1;
+        this->has_energy_monitoring_ = this->has_axb_ && energy_monitor_type == 2;
+      }
 
       // IZ2 zone count
       if (this->awl_iz2_) {
@@ -413,15 +422,16 @@ void WaterFurnace::process_response_(const std::vector<uint8_t> &frame) {
                YESNO(this->has_iz2_), iz2_ver, this->iz2_zone_count_,
                YESNO(this->has_vs_drive_));
 
-      // Build polling groups based on detected components
-      this->build_poll_groups_();
       this->setup_complete_ = true;
 
-      // Fire deferred setup callbacks (child entities waiting for detection results)
+      // Fire deferred setup callbacks (child entities register their listeners here)
       for (auto &cb : this->setup_callbacks_) {
         cb();
       }
       this->setup_callbacks_.clear();
+
+      // Build polling groups from registered listener addresses
+      this->build_poll_groups_();
 
       this->setup_phase_ = 0;
       this->state_ = State::IDLE;
@@ -479,51 +489,146 @@ void WaterFurnace::detect_components_() {
   this->state_ = State::WAITING_RESPONSE;
 }
 
+std::vector<std::pair<uint16_t, uint16_t>> WaterFurnace::merge_to_ranges(
+    const std::vector<uint16_t> &sorted_addrs, uint16_t max_gap) {
+  std::vector<std::pair<uint16_t, uint16_t>> ranges;
+  if (sorted_addrs.empty())
+    return ranges;
+
+  uint16_t start = sorted_addrs[0];
+  uint16_t end = sorted_addrs[0];
+
+  for (size_t i = 1; i < sorted_addrs.size(); i++) {
+    if (sorted_addrs[i] - end <= max_gap) {
+      end = sorted_addrs[i];
+    } else {
+      ranges.push_back({start, static_cast<uint16_t>(end - start + 1)});
+      start = sorted_addrs[i];
+      end = sorted_addrs[i];
+    }
+  }
+  ranges.push_back({start, static_cast<uint16_t>(end - start + 1)});
+  return ranges;
+}
+
+bool WaterFurnace::has_capability_(RegisterCapability cap) const {
+  switch (cap) {
+    case RegisterCapability::NONE:
+      return true;
+    case RegisterCapability::AWL_THERMOSTAT:
+      return this->awl_thermostat_;
+    case RegisterCapability::AWL_AXB:
+      return this->awl_axb_;
+    case RegisterCapability::AWL_COMMUNICATING:
+      return this->awl_thermostat_ || this->awl_iz2_;
+    case RegisterCapability::AXB:
+      return this->has_axb_;
+    case RegisterCapability::REFRIGERATION:
+      return this->has_refrigeration_monitoring_;
+    case RegisterCapability::ENERGY:
+      return this->has_energy_monitoring_;
+    case RegisterCapability::VS_DRIVE:
+      return this->has_vs_drive_;
+    case RegisterCapability::IZ2:
+      return this->awl_iz2_;
+    default:
+      return true;
+  }
+}
+
 void WaterFurnace::build_poll_groups_() {
   this->poll_groups_.clear();
 
-  // Group 0: Core thermostat/status (always)
-  {
+  // Register forwarding listener: poll 567 but dispatch to 740 on non-AWL AXB systems
+  if (!this->awl_axb_) {
+    this->register_listener(REG_ENTERING_AIR_ABC, [this](uint16_t v) {
+      this->dispatch_register_(REG_ENTERING_AIR, v);
+    });
+  }
+
+  // 1. Collect unique addresses from listeners whose capability is satisfied
+  std::vector<uint16_t> addrs;
+  addrs.reserve(this->listeners_.size());
+  for (const auto &listener : this->listeners_) {
+    if (this->has_capability_(listener.capability)) {
+      addrs.push_back(listener.address);
+    } else {
+      ESP_LOGW(TAG, "Register %u not pollable (capability not met)", listener.address);
+    }
+  }
+  std::sort(addrs.begin(), addrs.end());
+  addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
+
+  // 2. Rewrite 740→567 when !awl_axb_ (forwarding listener dispatches 567 values to 740)
+  if (!this->awl_axb_) {
+    for (auto &addr : addrs) {
+      if (addr == REG_ENTERING_AIR) {
+        addr = REG_ENTERING_AIR_ABC;
+      }
+    }
+    std::sort(addrs.begin(), addrs.end());
+    addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
+  }
+
+  // 3. Use capability-filtered addresses as pollable set
+  std::vector<uint16_t> &pollable = addrs;
+
+  if (pollable.empty()) {
+    ESP_LOGW(TAG, "No pollable registers, nothing to poll");
+    return;
+  }
+
+  // 4. Segment by protocol boundaries
+  std::vector<uint16_t> segment_a;  // addr < 12100: func 65 ranges
+  std::vector<uint16_t> segment_b;  // 12100 ≤ addr < 12500: func 66 individual
+  std::vector<uint16_t> segment_c;  // addr ≥ 31000: func 65 ranges (IZ2)
+
+  for (uint16_t addr : pollable) {
+    if (addr < REGISTER_BREAKPOINT_1) {
+      segment_a.push_back(addr);
+    } else if (addr < REGISTER_BREAKPOINT_2) {
+      segment_b.push_back(addr);
+    } else {
+      segment_c.push_back(addr);
+    }
+  }
+
+  // 5. Merge nearby addresses within func-65 segments into ranges (gap ≤ 8)
+  auto ranges_a = merge_to_ranges(segment_a);
+  auto ranges_c = merge_to_ranges(segment_c);
+
+  // 6. Split into PollGroups (max ~25 registers per group)
+  static constexpr uint16_t MAX_REGS_PER_GROUP = 25;
+
+  auto add_ranges_to_groups = [this](const std::vector<std::pair<uint16_t, uint16_t>> &ranges) {
+    PollGroup current;
+    uint16_t count = 0;
+    for (const auto &range : ranges) {
+      if (count > 0 && count + range.second > MAX_REGS_PER_GROUP) {
+        this->poll_groups_.push_back(std::move(current));
+        current = PollGroup();
+        count = 0;
+      }
+      current.ranges.push_back(range);
+      count += range.second;
+    }
+    if (!current.ranges.empty()) {
+      this->poll_groups_.push_back(std::move(current));
+    }
+  };
+
+  add_ranges_to_groups(ranges_a);
+
+  if (!segment_b.empty()) {
     PollGroup group;
-    group.ranges = get_thermostat_ranges();
+    group.individual = segment_b;
     this->poll_groups_.push_back(std::move(group));
   }
 
-  // Group 0b: Thermostat config (if AWL thermostat, single zone)
-  // Separate group because registers 12005-12006 are across the 12100 breakpoint
-  if (this->awl_thermostat_ && !this->has_iz2_) {
-    PollGroup group;
-    group.individual = get_thermostat_config_registers();
-    this->poll_groups_.push_back(std::move(group));
-  }
+  add_ranges_to_groups(ranges_c);
 
-  // Group 1: AXB performance (if AXB present)
-  if (this->has_axb_) {
-    PollGroup group;
-    group.ranges = get_axb_ranges();
-    this->poll_groups_.push_back(std::move(group));
-  }
-
-  // Group 2: Power/energy (if energy monitoring)
-  if (this->has_energy_monitoring_) {
-    PollGroup group;
-    group.ranges = get_power_ranges();
-    this->poll_groups_.push_back(std::move(group));
-  }
-
-  // Group 3: VS Drive (if VS)
-  if (this->has_vs_drive_) {
-    PollGroup group;
-    group.ranges = get_vs_drive_ranges();
-    this->poll_groups_.push_back(std::move(group));
-  }
-
-  // Group 4: IZ2 zones (if IZ2)
-  if (this->awl_iz2_ && this->iz2_zone_count_ > 0) {
-    PollGroup group;
-    group.ranges = get_iz2_ranges(this->iz2_zone_count_);
-    this->poll_groups_.push_back(std::move(group));
-  }
+  ESP_LOGI(TAG, "Built %d poll groups from %d listener addresses",
+           this->poll_groups_.size(), pollable.size());
 }
 
 void WaterFurnace::poll_next_group_() {

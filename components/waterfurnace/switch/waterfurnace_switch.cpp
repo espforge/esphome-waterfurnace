@@ -9,7 +9,7 @@ static const char *const TAG = "waterfurnace.switch";
 void WaterFurnaceSwitch::setup() {
   this->parent_->register_listener(this->register_address_, [this](uint16_t value) {
     this->publish_state(value != 0);
-  });
+  }, this->capability_);
 }
 
 void WaterFurnaceSwitch::dump_config() {

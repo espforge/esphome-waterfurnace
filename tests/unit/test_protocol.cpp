@@ -248,6 +248,9 @@ TEST(IZ2, ExtractMode) {
   EXPECT_EQ(iz2_extract_mode(0x0100), MODE_AUTO);
   EXPECT_EQ(iz2_extract_mode(0x0200), MODE_COOL);
   EXPECT_EQ(iz2_extract_mode(0x0300), MODE_HEAT);
+  EXPECT_EQ(iz2_extract_mode(0x0400), MODE_EHEAT);
+  // Real E-Heat config2 value from device: 0x2410
+  EXPECT_EQ(iz2_extract_mode(0x2410), MODE_EHEAT);
 }
 
 TEST(IZ2, DamperOpen) {
@@ -285,18 +288,15 @@ TEST(RegisterGroups, ComponentDetectCount) {
   EXPECT_EQ(total, 22u);
 }
 
-TEST(RegisterGroups, IZ2Ranges) {
-  auto ranges = get_iz2_ranges(3);
-  ASSERT_EQ(ranges.size(), 2u);
-  EXPECT_EQ(ranges[0].first, 31007u);
-  EXPECT_EQ(ranges[0].second, 9u);
-  EXPECT_EQ(ranges[1].first, 31200u);
-  EXPECT_EQ(ranges[1].second, 9u);
-}
-
-TEST(RegisterGroups, IZ2ZeroZones) {
-  auto ranges = get_iz2_ranges(0);
-  EXPECT_EQ(ranges.size(), 0u);
+TEST(RegisterGroups, IZ2ZoneConstants) {
+  // Verify IZ2 zone register layout constants
+  EXPECT_EQ(REG_IZ2_ZONE_BASE, 31007u);
+  EXPECT_EQ(REG_IZ2_ZONE_CONFIG3_BASE, 31200u);
+  EXPECT_EQ(REG_IZ2_OUTDOOR_TEMP, 31003u);
+  EXPECT_EQ(REG_IZ2_DEMAND, 31005u);
+  // Zone 1: base + (1-1)*3 = 31007
+  // Zone 3: base + (3-1)*3 = 31013
+  EXPECT_EQ(REG_IZ2_ZONE_BASE + 6, 31013u);
 }
 
 // ====== Constants ======

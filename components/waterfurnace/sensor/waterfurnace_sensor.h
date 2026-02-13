@@ -19,6 +19,7 @@ class WaterFurnaceSensor : public sensor::Sensor, public Component {
   void set_register_address(uint16_t addr) { register_address_ = addr; }
   void set_register_type(const std::string &type) { register_type_ = type; }
   void set_is_32bit(bool is_32bit) { is_32bit_ = is_32bit; }
+  void set_capability(const std::string &cap) { capability_ = cap; }
 
  protected:
   void on_register_value_(uint16_t value);
@@ -28,6 +29,7 @@ class WaterFurnaceSensor : public sensor::Sensor, public Component {
   uint16_t register_address_{0};
   std::string register_type_;
   bool is_32bit_{false};
+  std::string capability_{"none"};
 
   // For 32-bit values, cache the high word
   uint16_t hi_word_{0};

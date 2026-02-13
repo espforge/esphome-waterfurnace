@@ -2,27 +2,34 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-ROOT="$PWD"
+export ROOT="$PWD"
 
 # ESPHome version (default: stable)
-ESPHOME_VERSION="${1:-stable}"
+export ESPHOME_VERSION="${1:-stable}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
 PASS=0
 FAIL=0
+SKIP=0
 RESULTS=()
 
 run_test() {
   local name="$1"
   shift
   printf "${BOLD}=== %s ===${RESET}\n" "$name"
-  if "$@"; then
+  local rc=0
+  "$@" || rc=$?
+  if [ "$rc" -eq 0 ]; then
     RESULTS+=("${GREEN}PASS${RESET}  $name")
     ((PASS++))
+  elif [ "$rc" -eq 2 ]; then
+    RESULTS+=("${YELLOW}SKIP${RESET}  $name")
+    ((SKIP++))
   else
     RESULTS+=("${RED}FAIL${RESET}  $name")
     ((FAIL++))
@@ -83,6 +90,6 @@ for r in "${RESULTS[@]}"; do
   printf "  %b\n" "$r"
 done
 echo
-printf "${BOLD}Total: %d passed, %d failed${RESET}\n" "$PASS" "$FAIL"
+printf "${BOLD}Total: %d passed, %d failed, %d skipped${RESET}\n" "$PASS" "$FAIL" "$SKIP"
 
 [ "$FAIL" -eq 0 ]

@@ -6,6 +6,20 @@ namespace waterfurnace {
 
 static const char *const TAG = "waterfurnace.text_sensor";
 
+static std::string bitmask_to_string(uint16_t value, const BitLabel *bits, size_t count) {
+  if (value == 0)
+    return "None";
+  std::string result;
+  for (size_t i = 0; i < count; i++) {
+    if (value & bits[i].mask) {
+      if (!result.empty())
+        result += ", ";
+      result += bits[i].label;
+    }
+  }
+  return result.empty() ? "None" : result;
+}
+
 void WaterFurnaceTextSensor::setup() {
   if (this->sensor_type_ == "fault") {
     this->parent_->register_listener(REG_LAST_FAULT, [this](uint16_t v) {
@@ -23,6 +37,20 @@ void WaterFurnaceTextSensor::setup() {
   } else if (this->sensor_type_ == "mode") {
     this->parent_->register_listener(REG_SYSTEM_OUTPUTS, [this](uint16_t v) {
       this->on_system_outputs_(v);
+    });
+    this->parent_->register_listener(REG_ACTIVE_DEHUMIDIFY, [this](uint16_t v) {
+      this->on_active_dehumidify_(v);
+    }, RegisterCapability::VS_DRIVE);
+    this->parent_->register_listener(REG_COMPRESSOR_DELAY, [this](uint16_t v) {
+      this->on_compressor_delay_(v);
+    });
+  } else if (this->sensor_type_ == "outputs_at_lockout") {
+    this->parent_->register_listener(REG_OUTPUTS_AT_LOCKOUT, [this](uint16_t v) {
+      this->publish_state_dedup_(bitmask_to_string(v, OUTPUT_BITS, OUTPUT_BITS_SIZE));
+    });
+  } else if (this->sensor_type_ == "inputs_at_lockout") {
+    this->parent_->register_listener(REG_INPUTS_AT_LOCKOUT, [this](uint16_t v) {
+      this->publish_state_dedup_(bitmask_to_string(v, INPUT_BITS, INPUT_BITS_SIZE));
     });
   }
 }
@@ -49,18 +77,48 @@ void WaterFurnaceTextSensor::on_fault_register_(uint16_t value) {
 }
 
 void WaterFurnaceTextSensor::on_system_outputs_(uint16_t value) {
-  if (value & OUTPUT_LOCKOUT) {
+  this->system_outputs_ = value;
+  this->has_outputs_ = true;
+  this->compute_system_mode_();
+}
+
+void WaterFurnaceTextSensor::on_active_dehumidify_(uint16_t value) {
+  this->active_dehumidify_ = value;
+  if (this->has_outputs_)
+    this->compute_system_mode_();
+}
+
+void WaterFurnaceTextSensor::on_compressor_delay_(uint16_t value) {
+  this->compressor_delay_ = value;
+  if (this->has_outputs_)
+    this->compute_system_mode_();
+}
+
+void WaterFurnaceTextSensor::compute_system_mode_() {
+  uint16_t outputs = this->system_outputs_;
+
+  if (outputs & OUTPUT_LOCKOUT) {
     this->publish_state_dedup_("Lockout");
-  } else if (value & OUTPUT_EH1) {
+  } else if (this->active_dehumidify_ != 0) {
+    this->publish_state_dedup_("Dehumidify");
+  } else if ((outputs & OUTPUT_CC) || (outputs & OUTPUT_CC2)) {
+    // Compressor running - check if cooling, heating with aux, or plain heating
+    if (outputs & OUTPUT_RV) {
+      this->publish_state_dedup_("Cooling");
+    } else if (outputs & (OUTPUT_EH1 | OUTPUT_EH2)) {
+      this->publish_state_dedup_("Heating with Aux");
+    } else {
+      this->publish_state_dedup_("Heating");
+    }
+  } else if (outputs & (OUTPUT_EH1 | OUTPUT_EH2)) {
+    // EH without compressor = emergency heat
     this->publish_state_dedup_("Emergency Heat");
-  } else if ((value & OUTPUT_CC) && (value & OUTPUT_RV)) {
-    this->publish_state_dedup_("Cooling");
-  } else if (value & OUTPUT_CC) {
-    this->publish_state_dedup_("Heating");
-  } else if (value & OUTPUT_BLOWER) {
+  } else if (outputs & OUTPUT_BLOWER) {
     this->publish_state_dedup_("Fan Only");
+  } else if (this->compressor_delay_ != 0) {
+    this->publish_state_dedup_("Waiting");
   } else {
-    this->publish_state_dedup_("Idle");
+    this->publish_state_dedup_("Standby");
   }
 }
 
