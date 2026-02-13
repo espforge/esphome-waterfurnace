@@ -9,7 +9,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: espforge.waterfurnace
-    version: "0.0.1-beta"
+    version: "0.0.2-beta"
   on_boot:
     priority: 800.0
     then:
