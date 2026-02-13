@@ -184,6 +184,16 @@ binary_sensor:
       name: "Lockout"
     alarm:
       name: "Alarm"
+    axb_dhw:
+      name: "AXB DHW"
+    axb_loop_pump:
+      name: "AXB Loop Pump"
+    axb_diverting_valve:
+      name: "AXB Diverting Valve"
+    axb_dehumidifier:
+      name: "AXB Dehumidifier"
+    axb_accessory2:
+      name: "AXB Accessory 2"
 
 switch:
   - platform: waterfurnace

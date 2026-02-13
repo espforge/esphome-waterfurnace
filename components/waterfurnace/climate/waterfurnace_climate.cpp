@@ -18,6 +18,9 @@ void WaterFurnaceClimate::setup() {
 }
 
 void WaterFurnaceClimate::register_listeners_() {
+  // Humidity is shared across all zones (single sensor on the unit)
+  this->parent_->register_listener(REG_HUMIDITY, [this](uint16_t v) { this->on_humidity_(v); }, RegisterCapability::AWL_COMMUNICATING);
+
   if (this->zone_ == 1 && !this->parent_->has_iz2()) {
     // Zone 1 without IZ2 - use thermostat registers
     // Use register 502 for ambient temp (register 747 may read 0 when mode is OFF)
@@ -43,6 +46,7 @@ void WaterFurnaceClimate::dump_config() {
 climate::ClimateTraits WaterFurnaceClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
+                           climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
                            climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
 
   // Visual settings in °C (HA converts to display unit)
@@ -203,6 +207,13 @@ void WaterFurnaceClimate::on_ambient_temp_(uint16_t value) {
   ESP_LOGD(TAG, "Zone %d ambient temp: raw=%u (0x%04X) -> %.1f°F -> %.2f°C",
            this->zone_, value, value, temp_f, temp_c);
   this->current_temperature = temp_c;
+  this->publish_state_if_changed_();
+}
+
+void WaterFurnaceClimate::on_humidity_(uint16_t value) {
+  float humidity = static_cast<float>(value);
+  ESP_LOGD(TAG, "Zone %d humidity: raw=%u -> %.0f%%", this->zone_, value, humidity);
+  this->current_humidity = humidity;
   this->publish_state_if_changed_();
 }
 
@@ -425,6 +436,8 @@ void WaterFurnaceClimate::publish_state_if_changed_() {
 
     if (temp_changed(this->current_temperature, this->last_current_temp_))
       changed = true;
+    else if (temp_changed(this->current_humidity, this->last_current_humidity_))
+      changed = true;
     else if (temp_changed(this->target_temperature_low, this->last_target_low_))
       changed = true;
     else if (temp_changed(this->target_temperature_high, this->last_target_high_))
@@ -443,6 +456,7 @@ void WaterFurnaceClimate::publish_state_if_changed_() {
   }
 
   this->last_current_temp_ = this->current_temperature;
+  this->last_current_humidity_ = this->current_humidity;
   this->last_target_low_ = this->target_temperature_low;
   this->last_target_high_ = this->target_temperature_high;
   this->last_mode_ = this->mode;

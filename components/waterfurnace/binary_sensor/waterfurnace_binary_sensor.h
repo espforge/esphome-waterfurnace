@@ -16,11 +16,13 @@ class WaterFurnaceBinarySensor : public binary_sensor::BinarySensor, public Comp
   void set_parent(WaterFurnace *parent) { parent_ = parent; }
   void set_register_address(uint16_t addr) { register_address_ = addr; }
   void set_bitmask(uint16_t mask) { bitmask_ = mask; }
+  void set_capability(const std::string &cap) { capability_ = capability_from_string(cap.c_str()); }
 
  protected:
   WaterFurnace *parent_{nullptr};
   uint16_t register_address_{0};
   uint16_t bitmask_{0};
+  RegisterCapability capability_{RegisterCapability::NONE};
 };
 
 }  // namespace waterfurnace

@@ -1,7 +1,8 @@
-# Code Review: ESPHome vs Reference (`waterfurnace_aurora`)
+# Protocol & Register Reference
 
-Comprehensive register-by-register comparison of the ESPHome WaterFurnace
-component against the Ruby reference project at `waterfurnace_aurora`.
+Complete register map for the ESPHome WaterFurnace component, verified
+register-by-register against the [waterfurnace_aurora](https://github.com/ccutrer/waterfurnace_aurora)
+Ruby reference project.
 
 Reference files examined:
 - `lib/aurora/registers.rb` — all register definitions, converters, formats
@@ -131,6 +132,16 @@ Active dehumidify (reg 362) gated to `vs_drive`: Confirmed correct per
 | 0x400 | OUTPUT_LOCKOUT | :lockout | Yes |
 | 0x800 | OUTPUT_ALARM | :alarm | Yes |
 
+### AXB Outputs (Register 1104)
+
+| Bit | ESPHome | Reference | Match |
+|---|---|---|---|
+| 0x01 | axb_dhw | :dhw | Yes |
+| 0x02 | axb_loop_pump | :loop_pump | Yes |
+| 0x04 | axb_diverting_valve | :diverting_valve | Yes |
+| 0x08 | axb_dehumidifier | :dehumidifier_reheat | Yes |
+| 0x10 | axb_accessory2 | :accessory2 | Yes |
+
 ### System Inputs (Register 31)
 
 | Bit | ESPHome | Reference | Match |
@@ -207,11 +218,15 @@ ESPHome's fix is correct and was confirmed in commit d3e389c.
 
 ## Entering Air Fallback
 
-ESPHome rewrites 740 to 567 when `!awl_axb_` with a forwarding listener.
+Entering air temperature is available from two registers depending on hardware:
+- **Register 740** — available on AWL AXB systems (AXB v2.0+)
+- **Register 567** — available on all systems (ABC board fallback)
+
+On non-AWL-AXB systems, register 740 is not populated. ESPHome polls register 567
+instead and forwards its value to all register 740 listeners, so sensors always
+subscribe to 740 regardless of hardware.
 
 Reference (`abc_client.rb:200`): `@entering_air_register = awl_axb? ? 740 : 567`
-
-Same condition, same behavior.
 
 ---
 
@@ -298,10 +313,12 @@ Per-sensor capability verification against the reference's component architectur
 
 ---
 
-## Missing Sensors (Actively Polled by Reference)
+## Missing Sensors (Polled by Reference, Not Polled by ESPHome)
 
 Registers that the reference's components explicitly include in `registers_to_read`
-but ESPHome does not expose.
+but ESPHome does not poll or expose. The ESPHome component is listener-driven — it
+only polls registers that have a configured entity (sensor, text sensor, etc.), so
+these registers are never read from the device.
 
 ### VS Drive — `compressor.rb:85`
 
@@ -339,12 +356,6 @@ but ESPHome does not expose.
 |---|---|---|---|---|
 | 112 | Line Voltage Setting | unsigned (V) | none | Configured line voltage (not actual — that's reg 16). Always read by reference. |
 
-### AXB Outputs — `abc_client.rb:202`
-
-| Register | Name | Type | Capability | Notes |
-|---|---|---|---|---|
-| 1104 | AXB Outputs | bitmask | axb | Bits: 0x01=DHW, 0x02=Loop Pump, 0x04=Diverting Valve, 0x08=Dehumidifier/Reheat, 0x10=Accessory2. Would be binary sensors, not regular sensors. |
-
 ### Humidistat — `humidistat.rb:34-41`
 
 | Register | Name | Type | Capability | Notes |
@@ -356,10 +367,11 @@ but ESPHome does not expose.
 
 ---
 
-## Named Registers (Not Actively Polled by Components)
+## Named Registers (Not Polled by Reference or ESPHome)
 
 Registers that have names and converters in `registers.rb` but aren't in any
-component's `registers_to_read`. Available if needed.
+component's `registers_to_read` in the reference, and are also not polled by
+ESPHome. These are defined but unused by both projects.
 
 | Register | Name | Type | Notes |
 |---|---|---|---|
@@ -379,9 +391,10 @@ component's `registers_to_read`. Available if needed.
    `& 0x03`. The reference cannot detect E-Heat (mode 4) on IZ2 zones. This is a bug
    in `registers.rb:466` (`zone_configuration2`).
 
-2. **Entering air forwarding listener** — Clean architecture: registers 567 values to
-   740 listeners on non-AWL-AXB systems, avoiding conditional logic throughout the
-   sensor layer.
+2. **Entering air forwarding listener** — On non-AWL-AXB systems, register 740 is
+   not populated; entering air temperature comes from register 567 instead. ESPHome
+   reads 567 and forwards its value to all register 740 listeners, so sensors always
+   subscribe to 740 regardless of hardware configuration.
 
 3. **Sentinel value handling** — ESPHome converts -999.9 and 999.9 to NaN, which the
    reference doesn't do (it passes through raw converted values).

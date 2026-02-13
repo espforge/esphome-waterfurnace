@@ -120,23 +120,38 @@ Up to 6 zones are supported. The component auto-detects whether IZ2 is installed
 
 ## Supported Features
 
-### Climate
+See **[PROTOCOL.md](PROTOCOL.md)** for the complete register map with addresses, data types, and capability gating.
+
+### Climate (1 per zone)
 - Single zone and IZ2 multi-zone (up to 6 zones, auto-detected)
 - Modes: Off, Heat, Cool, Auto (Heat/Cool), Emergency Heat (E-Heat custom preset, zone 1 only)
 - Fan modes: Auto, Continuous, Intermittent
 - Two-point setpoints (heating + cooling)
+- Current humidity display (requires AWL communicating thermostat)
 
-### Sensors
-Temperature, pressure, power, current, humidity, compressor speed, waterflow, heat of extraction/rejection, and more.
+### Sensors (56)
+Sensors are automatically enabled based on detected hardware capabilities:
 
-### Binary Sensors
-Compressor, blower, aux heat stages, reversing valve, lockout, alarm status from the system outputs register.
+| Group | Capability | Examples |
+|-------|-----------|----------|
+| Core | none | FP1/FP2 temperature, ECM speed, entering air temperature |
+| Thermostat | awl_thermostat | Ambient temperature |
+| Communicating | awl_communicating | Outdoor temperature, relative humidity |
+| AXB Performance | axb | Water temperatures, pressures, amps, waterflow, DHW temperature |
+| Refrigeration | refrigeration | Heat of extraction/rejection, superheat, saturated temperatures |
+| Power & Electrical | energy | Compressor/blower/aux/pump/total watts, line voltage |
+| VS Drive | vs_drive | Compressor speed, drive temperatures, voltages, pressures, EEV2 |
+| IZ2 | iz2 | IZ2 outdoor temperature, demand |
 
-### Switches
-DHW (Domestic Hot Water) enable/disable.
+### Binary Sensors (14)
+- **System Outputs** (register 30): Compressor, compressor stage 2, reversing valve, blower, aux heat stages 1 & 2, accessory, lockout, alarm
+- **AXB Outputs** (register 1104): DHW, loop pump, diverting valve, dehumidifier/reheat, accessory 2
 
-### Text Sensors
-Model number, serial number, current fault code with description, system operating mode.
+### Switches (1)
+- DHW (Domestic Hot Water) enable/disable
+
+### Text Sensors (6)
+- Model number, serial number, current fault code with description, system operating mode, outputs at lockout, inputs at lockout
 
 ## Protocol
 

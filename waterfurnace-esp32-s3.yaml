@@ -48,6 +48,9 @@ web_server:
     - id: group_power
       name: "Power & Electrical"
       sorting_weight: 30
+    - id: group_axb_outputs
+      name: "AXB Outputs"
+      sorting_weight: 35
     - id: group_system_outputs
       name: "System Outputs"
       sorting_weight: 40
@@ -452,6 +455,31 @@ binary_sensor:
       web_server:
         sorting_group_id: group_system_outputs
         sorting_weight: 100
+    axb_dhw:
+      name: "AXB DHW"
+      web_server:
+        sorting_group_id: group_axb_outputs
+        sorting_weight: 10
+    axb_loop_pump:
+      name: "AXB Loop Pump"
+      web_server:
+        sorting_group_id: group_axb_outputs
+        sorting_weight: 20
+    axb_diverting_valve:
+      name: "AXB Diverting Valve"
+      web_server:
+        sorting_group_id: group_axb_outputs
+        sorting_weight: 30
+    axb_dehumidifier:
+      name: "AXB Dehumidifier"
+      web_server:
+        sorting_group_id: group_axb_outputs
+        sorting_weight: 40
+    axb_accessory2:
+      name: "AXB Accessory 2"
+      web_server:
+        sorting_group_id: group_axb_outputs
+        sorting_weight: 50
 
 switch:
   - platform: waterfurnace

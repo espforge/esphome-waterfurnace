@@ -25,6 +25,7 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
 
   // Register callbacks
   void on_ambient_temp_(uint16_t value);
+  void on_humidity_(uint16_t value);
   void on_heating_setpoint_(uint16_t value);
   void on_cooling_setpoint_(uint16_t value);
   void on_mode_config_(uint16_t value);
@@ -64,6 +65,7 @@ class WaterFurnaceClimate : public climate::Climate, public Component {
 
   // Change detection for publish_state dedup
   float last_current_temp_{NAN};
+  float last_current_humidity_{NAN};
   float last_target_low_{NAN};
   float last_target_high_{NAN};
   climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};

@@ -2,7 +2,7 @@
 
 ## Local Development
 
-For local development, create a `secrets.yaml` in the project root with your WiFi credentials, then use the dev config in `tests/`:
+For local development, use the dev config in `tests/` (a `secrets.yaml` with test credentials is already included):
 
 ```sh
 # Run all tests (unit, integration, config validation, compile)
