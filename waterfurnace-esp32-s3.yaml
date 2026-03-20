@@ -12,7 +12,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: espforge.waterfurnace
-    version: "0.0.0"
+    version: "0.1.0-beta"
 
 esp32:
   board: esp32-s3-devkitc-1
