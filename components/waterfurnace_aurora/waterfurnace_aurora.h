@@ -88,7 +88,12 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
   // Hardware override setters (skip auto-detection when set)
   void set_has_axb_override(bool value) { this->has_axb_ = value; this->axb_override_ = true; }
   void set_has_vs_drive_override(bool value) { this->has_vs_drive_ = value; this->vs_drive_override_ = true; }
-  void set_has_iz2_override(bool value) { this->has_iz2_ = value; this->iz2_override_ = true; }
+  void set_has_iz2_override(bool value) {
+    this->has_iz2_ = value;
+    this->iz2_override_ = true;
+    // Override implies AWL IZ2 (v2.0+) since zone registers require it
+    if (value && this->iz2_version_ < 2.0f) this->iz2_version_ = 2.0f;
+  }
   void set_num_iz2_zones_override(uint8_t value) { this->num_iz2_zones_ = value; this->iz2_zones_override_ = true; }
   void set_water_temps_swapped(bool value) { this->water_temps_swapped_ = value; }
 
@@ -276,6 +281,7 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
   void set_humidifier_mode_sensor(text_sensor::TextSensor *sensor) { this->humidifier_mode_sensor_ = sensor; }
   void set_dehumidifier_mode_sensor(text_sensor::TextSensor *sensor) { this->dehumidifier_mode_sensor_ = sensor; }
   void set_pump_type_sensor(text_sensor::TextSensor *sensor) { this->pump_type_sensor_ = sensor; }
+  void set_hardware_config_sensor(text_sensor::TextSensor *sensor) { this->hardware_config_sensor_ = sensor; }
   void set_lockout_fault_code_sensor(sensor::Sensor *sensor) { this->lockout_fault_code_sensor_ = sensor; }
   void set_lockout_fault_description_sensor(text_sensor::TextSensor *sensor) { this->lockout_fault_description_sensor_ = sensor; }
   void set_outputs_at_lockout_sensor(text_sensor::TextSensor *sensor) { this->outputs_at_lockout_sensor_ = sensor; }
@@ -370,6 +376,8 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
   float get_relative_humidity() const { return this->relative_humidity_; }
   bool get_humidifier_auto() const { return this->humidifier_auto_; }
   bool get_dehumidifier_auto() const { return this->dehumidifier_auto_; }
+  bool awl_thermostat() const { return this->thermostat_version_ >= 3.0f; }
+  bool awl_iz2() const { return this->has_iz2_ && this->iz2_version_ >= 2.0f; }
   bool awl_communicating() const { return this->awl_thermostat() || this->awl_iz2(); }
   bool has_humidifier() const { return this->has_humidifier_; }
   bool has_dehumidifier() const { return this->has_dehumidifier_; }
@@ -519,8 +527,6 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
 
   // AWL version helpers
   bool awl_axb() const { return this->has_axb_ && this->axb_version_ >= 2.0f; }
-  bool awl_thermostat() const { return this->thermostat_version_ >= 3.0f; }
-  bool awl_iz2() const { return this->has_iz2_ && this->iz2_version_ >= 2.0f; }
   bool is_ecm_blower() const { return this->blower_type_ == BlowerType::ECM_208 || this->blower_type_ == BlowerType::ECM_265; }
   bool is_vs_pump() const { return this->pump_type_ == PumpType::VS_PUMP || this->pump_type_ == PumpType::VS_PUMP_26_99 || this->pump_type_ == PumpType::VS_PUMP_UPS26_99; }
   bool refrigeration_monitoring() const { return this->energy_monitor_level_ >= 1; }
@@ -906,6 +912,7 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
   text_sensor::TextSensor *humidifier_mode_sensor_{nullptr};
   text_sensor::TextSensor *dehumidifier_mode_sensor_{nullptr};
   text_sensor::TextSensor *pump_type_sensor_{nullptr};
+  text_sensor::TextSensor *hardware_config_sensor_{nullptr};
   text_sensor::TextSensor *eev2_ctl_sensor_{nullptr};
 
   // --- Configuration text sensors (gap 11) ---

@@ -103,6 +103,12 @@ void AuroraClimate::control(const climate::ClimateCall &call) {
                this->parent_->get_num_iz2_zones());
       return;
     }
+  } else {
+    // Thermostat mode requires AWL thermostat firmware v3.0+ for register access
+    if (!this->parent_->awl_thermostat()) {
+      ESP_LOGW(TAG, "AWL thermostat not detected (v3.0+ required), cannot control zone %d", this->zone_);
+      return;
+    }
   }
 
   // Handle mode change
@@ -298,8 +304,11 @@ void AuroraClimate::update_state_() {
         this->set_custom_fan_mode_(CUSTOM_FAN_MODE_INTERMITTENT);
       }
     }
-  } else {
-    // === Thermostat path: read from system-wide registers ===
+  } else if (this->parent_->awl_thermostat()) {
+    // === Thermostat path: read from system-wide AWL registers ===
+    // Requires thermostat firmware v3.0+ for registers 502, 745, 746, 12005, 12006.
+    // Without AWL, these registers return 0 — the else branch below skips them
+    // entirely so the climate entity stays at defaults (NAN temps, OFF mode).
 
     // Update current temperature (hardware reports °F, climate entity uses °C).
     // EMA smoothing applied here too — the main thermostat sensor can also jitter.
@@ -344,7 +353,7 @@ void AuroraClimate::update_state_() {
     bool dehumidifying = (this->parent_->is_active_dehumidify() && cooling)
                          || (this->parent_->has_dehumidifier()
                              && (this->parent_->get_axb_outputs() & AXB_OUTPUT_DEHUMIDIFIER) != 0);
-    
+
     if (this->parent_->is_locked_out()) {
       this->action = climate::CLIMATE_ACTION_OFF;
     } else if (compressor && cooling) {
@@ -372,6 +381,28 @@ void AuroraClimate::update_state_() {
       } else {
         this->set_custom_fan_mode_(CUSTOM_FAN_MODE_INTERMITTENT);
       }
+    }
+  } else {
+    // === Non-AWL thermostat: no register access for climate control ===
+    // Thermostat firmware < v3.0 does not expose setpoints, mode, or ambient
+    // temperature over Modbus.  Climate entity stays at defaults (Unknown temps,
+    // OFF mode).  System outputs (register 30) are still readable for action.
+    uint16_t outputs = this->parent_->get_system_outputs();
+    bool compressor = (outputs & (OUTPUT_CC | OUTPUT_CC2)) != 0;
+    bool cooling = (outputs & OUTPUT_RV) != 0;
+    bool aux_heat = (outputs & (OUTPUT_EH1 | OUTPUT_EH2)) != 0;
+    bool blower = (outputs & OUTPUT_BLOWER) != 0;
+
+    if (this->parent_->is_locked_out()) {
+      this->action = climate::CLIMATE_ACTION_OFF;
+    } else if (compressor && cooling) {
+      this->action = climate::CLIMATE_ACTION_COOLING;
+    } else if (compressor || aux_heat) {
+      this->action = climate::CLIMATE_ACTION_HEATING;
+    } else if (blower) {
+      this->action = climate::CLIMATE_ACTION_FAN;
+    } else {
+      this->action = climate::CLIMATE_ACTION_IDLE;
     }
   }
 

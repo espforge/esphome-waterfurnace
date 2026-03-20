@@ -37,8 +37,9 @@ class AuroraClimate : public climate::Climate, public Component {
 
   /// Zone 1 auto-detects thermostat vs IZ2 at runtime.
   /// Zones 2-6 are always IZ2.
+  /// Requires AWL IZ2 (v2.0+) for zone register access.
   bool is_iz2_mode_() const {
-    return this->zone_ > 1 || (this->zone_ == 1 && this->parent_->has_iz2());
+    return this->zone_ > 1 || (this->zone_ == 1 && this->parent_->awl_iz2());
   }
 
   void publish_zone_diagnostics_();

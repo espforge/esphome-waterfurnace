@@ -29,6 +29,7 @@ TEXT_SENSORS = {
     "humidifier_mode": text_sensor.text_sensor_schema(),
     "dehumidifier_mode": text_sensor.text_sensor_schema(),
     "pump_type": DIAGNOSTIC_TEXT_SCHEMA,
+    "hardware_config": DIAGNOSTIC_TEXT_SCHEMA,
     "lockout_fault_description": DIAGNOSTIC_TEXT_SCHEMA,
     "outputs_at_lockout": DIAGNOSTIC_TEXT_SCHEMA,
     "inputs_at_lockout": DIAGNOSTIC_TEXT_SCHEMA,

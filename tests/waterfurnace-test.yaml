@@ -374,6 +374,8 @@ text_sensor:
       name: "Test Dehumidifier Mode"
     pump_type:
       name: "Test Pump Type"
+    hardware_config:
+      name: "Test Hardware Config"
     lockout_fault_description:
       name: "Test Lockout Fault Description"
     outputs_at_lockout:

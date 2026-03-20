@@ -405,6 +405,8 @@ text_sensor:
     # Hardware info
     pump_type:
       name: "Pump Type"
+    hardware_config:
+      name: "Hardware Config"
 
 # =============================================================================
 # SELECTS

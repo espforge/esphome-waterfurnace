@@ -656,7 +656,7 @@ void WaterFurnaceAurora::process_setup_detect_response_(const protocol::ParsedRe
   if (val_aver) this->axb_version_ = static_cast<float>(*val_aver) / 100.0f;
   
   const uint16_t *val_iver = reg_find(result, registers::IZ2_VERSION);
-  if (val_iver) this->iz2_version_ = static_cast<float>(*val_iver) / 100.0f;
+  if (val_iver && !this->iz2_override_) this->iz2_version_ = static_cast<float>(*val_iver) / 100.0f;
   
   // DIP Switch settings (register 33) — used for compressor stages, humidifier detection
   // Matches Ruby gem abc_client.rb:179 — @abc_dipswitches = registers[33]
@@ -795,21 +795,33 @@ void WaterFurnaceAurora::finish_setup_() {
     this->leaving_air_temperature_sensor_->publish_state(NAN);
   }
   
-  ESP_LOGI(TAG, "Setup complete:");
-  ESP_LOGI(TAG, "  AXB: %s%s (v%.2f)", this->has_axb_ ? "yes" : "no",
-           this->axb_override_ ? " (override)" : "", this->axb_version_);
-  ESP_LOGI(TAG, "  VS Drive: %s%s", this->has_vs_drive_ ? "yes" : "no",
-           this->vs_drive_override_ ? " (override)" : "");
-  ESP_LOGI(TAG, "  IZ2: %s%s (v%.2f, %d zones)", this->has_iz2_ ? "yes" : "no",
+  // Build hardware config summary string (shared by log and text sensor)
+  const char *blower_str = this->blower_type_ == BlowerType::PSC ? "PSC" :
+                           this->blower_type_ == BlowerType::FIVE_SPEED ? "5-Speed" : "ECM";
+  const char *pump_str = get_pump_type_string(this->pump_type_);
+
+  char hw_buf[320];
+  snprintf(hw_buf, sizeof(hw_buf),
+           "Tstat: v%.2f%s, AXB: %s%s (v%.2f), VS: %s%s, IZ2: %s%s (v%.2f, %d zones), "
+           "Blower: %s, Pump: %s, Energy: %d, Hum: %s, Dehum: %s",
+           this->thermostat_version_,
+           this->awl_thermostat() ? " AWL" : "",
+           this->has_axb_ ? "yes" : "no",
+           this->axb_override_ ? " (override)" : "", this->axb_version_,
+           this->has_vs_drive_ ? "yes" : "no",
+           this->vs_drive_override_ ? " (override)" : "",
+           this->has_iz2_ ? "yes" : "no",
            this->iz2_override_ ? " (override)" : "",
-           this->iz2_version_, this->num_iz2_zones_);
-  ESP_LOGI(TAG, "  Blower: %s, Pump: %s, Energy: %d",
-           this->blower_type_ == BlowerType::PSC ? "PSC" :
-           this->blower_type_ == BlowerType::FIVE_SPEED ? "5-Speed" : "ECM",
-           get_pump_type_string(this->pump_type_), this->energy_monitor_level_);
-  ESP_LOGI(TAG, "  Humidifier: %s, Dehumidifier: %s",
+           this->iz2_version_, this->num_iz2_zones_,
+           blower_str, pump_str, this->energy_monitor_level_,
            this->has_humidifier_ ? "yes" : "no",
            this->has_dehumidifier_ ? "yes" : "no");
+
+  ESP_LOGI(TAG, "Setup complete: %s", hw_buf);
+
+  if (this->hardware_config_sensor_ != nullptr) {
+    this->hardware_config_sensor_->publish_state(hw_buf);
+  }
   
   // Fire deferred setup callbacks
   for (size_t i = 0; i < this->setup_callbacks_len_; i++) {
@@ -841,15 +853,21 @@ void WaterFurnaceAurora::build_poll_addresses_() {
   
   this->add_poll_addr_(registers::FP1_TEMP);
   this->add_poll_addr_(registers::FP2_TEMP);
-  this->add_poll_addr_(registers::AMBIENT_TEMP);
-  
-  // Setpoints, mode, and fan config on fast tier — these are writable from HA
-  // and must be polled frequently so the write cooldown window (7s) always
-  // contains at least one fresh read-back.  Only 4 extra registers per cycle.
-  this->add_poll_addr_(registers::HEATING_SETPOINT);
-  this->add_poll_addr_(registers::COOLING_SETPOINT);
-  this->add_poll_addr_(registers::HEATING_MODE_READ);
-  this->add_poll_addr_(registers::FAN_CONFIG);
+
+  // AWL thermostat registers (502, 745, 746, 12005, 12006) require thermostat
+  // firmware v3.0+.  Non-AWL thermostats return 0 for these registers, which
+  // produces garbage climate state (0°F ambient, setpoints at bounds, mode OFF).
+  // The Ruby gem (thermostat.rb:18) also gates these: `return [] unless @abc.awl_thermostat?`
+  if (this->awl_thermostat()) {
+    this->add_poll_addr_(registers::AMBIENT_TEMP);
+    // Setpoints, mode, and fan config on fast tier — these are writable from HA
+    // and must be polled frequently so the write cooldown window (7s) always
+    // contains at least one fresh read-back.
+    this->add_poll_addr_(registers::HEATING_SETPOINT);
+    this->add_poll_addr_(registers::COOLING_SETPOINT);
+    this->add_poll_addr_(registers::HEATING_MODE_READ);
+    this->add_poll_addr_(registers::FAN_CONFIG);
+  }
   
   if (this->awl_axb()) {
     this->add_poll_addr_(registers::ENTERING_AIR_AWL);
@@ -968,7 +986,9 @@ void WaterFurnaceAurora::build_poll_addresses_() {
     this->add_poll_addr_(registers::DHW_SETPOINT);
   }
   
-  if (this->has_iz2_ && this->num_iz2_zones_ > 0) {
+  // IZ2 zone registers (31007+) require AWL IZ2 firmware v2.0+.
+  // The Ruby gem (abc_client.rb:165) also gates on: `iz2? && iz2_version >= 2.0`
+  if (this->awl_iz2() && this->num_iz2_zones_ > 0) {
     this->add_poll_addr_(registers::IZ2_OUTDOOR_TEMP);
     this->add_poll_addr_(registers::IZ2_DEMAND);
     this->add_poll_addr_(registers::IZ2_COMPRESSOR_SPEED_DESIRED);
@@ -1939,8 +1959,8 @@ void WaterFurnaceAurora::publish_humidity_control_sensors_(const RegisterMap &re
 }
 
 void WaterFurnaceAurora::publish_iz2_zone_sensors_(const RegisterMap &regs) {
-  if (!this->has_iz2_ || this->num_iz2_zones_ == 0) return;
-  
+  if (!this->awl_iz2() || this->num_iz2_zones_ == 0) return;
+
   for (uint8_t zone = 1; zone <= this->num_iz2_zones_; zone++) {
     IZ2ZoneData &zone_data = this->iz2_zones_[zone - 1];
     
