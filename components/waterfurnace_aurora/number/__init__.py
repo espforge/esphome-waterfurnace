@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_MIN_VALUE,
     CONF_MAX_VALUE,
@@ -71,8 +72,10 @@ AURORA_NUMBER_TYPES = {
 BLOWER_SPEED_SCHEMA = number.number_schema(
     AuroraNumber,
     icon="mdi:fan",
+    entity_category=ENTITY_CATEGORY_CONFIG,
 ).extend(
     {
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
         cv.Optional(CONF_MIN_VALUE, default=1): cv.float_,
         cv.Optional(CONF_MAX_VALUE, default=12): cv.float_,
         cv.Optional(CONF_STEP, default=1): cv.float_,
@@ -84,8 +87,10 @@ PUMP_SPEED_SCHEMA = number.number_schema(
     AuroraNumber,
     unit_of_measurement=UNIT_PERCENT,
     icon="mdi:pump",
+    entity_category=ENTITY_CATEGORY_CONFIG,
 ).extend(
     {
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
         cv.Optional(CONF_MIN_VALUE, default=1): cv.float_,
         cv.Optional(CONF_MAX_VALUE, default=100): cv.float_,
         cv.Optional(CONF_STEP, default=1): cv.float_,
@@ -98,8 +103,10 @@ FAN_ON_TIME_SCHEMA = number.number_schema(
     AuroraNumber,
     unit_of_measurement="min",
     icon="mdi:timer",
+    entity_category=ENTITY_CATEGORY_CONFIG,
 ).extend(
     {
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
         cv.Optional(CONF_MIN_VALUE, default=0): cv.float_,
         cv.Optional(CONF_MAX_VALUE, default=25): cv.float_,
         cv.Optional(CONF_STEP, default=5): cv.float_,
@@ -113,8 +120,10 @@ FAN_OFF_TIME_SCHEMA = number.number_schema(
     AuroraNumber,
     unit_of_measurement="min",
     icon="mdi:timer-off",
+    entity_category=ENTITY_CATEGORY_CONFIG,
 ).extend(
     {
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
         cv.Optional(CONF_MIN_VALUE, default=5): cv.float_,
         cv.Optional(CONF_MAX_VALUE, default=40): cv.float_,
         cv.Optional(CONF_STEP, default=5): cv.float_,
@@ -186,6 +195,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:flash",
         ).extend(
             {
+                cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
                 cv.Optional(CONF_MIN_VALUE, default=90): cv.float_,
                 cv.Optional(CONF_MAX_VALUE, default=635): cv.float_,
                 cv.Optional(CONF_STEP, default=1): cv.float_,
@@ -198,6 +208,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:fan-chevron-down",
         ).extend(
             {
+                cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
                 cv.Optional(CONF_MIN_VALUE, default=-10): cv.float_,
                 cv.Optional(CONF_MAX_VALUE, default=10): cv.float_,
                 cv.Optional(CONF_STEP, default=1): cv.float_,
@@ -212,6 +223,7 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:gauge",
         ).extend(
             {
+                cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean,
                 cv.Optional(CONF_MIN_VALUE, default=0): cv.float_,
                 cv.Optional(CONF_MAX_VALUE, default=100): cv.float_,
                 cv.Optional(CONF_STEP, default=0.1): cv.float_,

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_DISABLED_BY_DEFAULT, ENTITY_CATEGORY_CONFIG
 from .. import waterfurnace_aurora_ns, WaterFurnaceAurora, CONF_AURORA_ID
 
 DEPENDENCIES = ["waterfurnace_aurora"]
@@ -31,11 +31,16 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PUMP_MANUAL_CONTROL): switch.switch_schema(
             AuroraPumpManualSwitch,
             icon="mdi:pump",
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean}
         ).extend(cv.COMPONENT_SCHEMA),
         cv.Optional(CONF_TEST_MODE): switch.switch_schema(
             AuroraTestModeSwitch,
             icon="mdi:test-tube",
             entity_category=ENTITY_CATEGORY_CONFIG,
+        ).extend(
+            {cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean}
         ).extend(cv.COMPONENT_SCHEMA),
     }
 )
