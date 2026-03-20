@@ -1,48 +1,45 @@
 # WaterFurnace Aurora ESPHome Package
-# 
+#
 # This is a complete external package that can be included in your ESPHome configuration.
 # It provides all sensors, controls, and configuration options for WaterFurnace Aurora
 # geothermal heat pumps via RS-485 Modbus RTU.
 #
 # USAGE (from GitHub):
 #   packages:
-#     waterfurnace.aurora: github://daemonp/esphome_waterfurnace_aurora/waterfurnace_aurora.yaml@master
+#     waterfurnace_aurora: github://espforge/esphome-waterfurnace/waterfurnace_aurora.yaml@main
 #
 # REQUIRED SUBSTITUTIONS (set these before including):
 #   uart_tx_pin: GPIO pin for UART TX (e.g., GPIO17)
-#   uart_rx_pin: GPIO pin for UART RX (e.g., GPIO16)
-#   flow_control_pin: GPIO pin for RS-485 direction control (e.g., GPIO4)
+#   uart_rx_pin: GPIO pin for UART RX (e.g., GPIO18)
+#   flow_control_pin: GPIO pin for RS-485 direction control (e.g., GPIO21)
 #
 # OPTIONAL SUBSTITUTIONS:
+#   component_source: Where to load waterfurnace_aurora from (default: GitHub)
 #   modbus_address: Modbus slave address (default: "1")
 #   update_interval: How often to poll the heat pump (default: 5s)
 #
 # Serial settings: 19200 baud, 8 data bits, Even parity, 1 stop bit
 #
-# Hardware wiring (ESP32 -> MAX485 -> Aurora):
-#   ESP32 TX_PIN    -> MAX485 DI
-#   ESP32 RX_PIN    -> MAX485 RO  
-#   ESP32 FLOW_PIN  -> MAX485 DE + RE (tied together)
-#   3.3V            -> MAX485 VCC
-#   GND             -> MAX485 GND
-#   MAX485 A        -> Aurora RS-485 A (+)
-#   MAX485 B        -> Aurora RS-485 B (-)
-#   GND             -> Aurora GND (shield)
+# Recommended hardware: Waveshare ESP32-S3-RS485-CAN board
+#   https://www.waveshare.com/esp32-s3-rs485-can.htm
+#   Built-in RS-485 transceiver — no external MAX485 module needed.
+#   Default pins: TX=GPIO17, RX=GPIO18, Flow Control=GPIO21
+#
+# Alternative hardware: Any ESP32/ESP8266 + MAX485 RS-485 transceiver
+#   See docs/HARDWARE.md for wiring details.
 
 substitutions:
-  # These must be set by the user
+  # Hardware pins (defaults for Waveshare ESP32-S3-RS485-CAN)
   uart_tx_pin: GPIO17
-  uart_rx_pin: GPIO16
-  flow_control_pin: GPIO4
+  uart_rx_pin: GPIO18
+  flow_control_pin: GPIO21
   # Optional settings
+  component_source: github://espforge/esphome-waterfurnace@main
   modbus_address: "1"
   update_interval: 5s
 
 external_components:
-  - source:
-      type: git
-      url: https://github.com/daemonp/esphome_waterfurnace_aurora
-      ref: master
+  - source: ${component_source}
     components: [ waterfurnace_aurora ]
 
 # UART configuration for RS-485 communication
@@ -67,44 +64,28 @@ waterfurnace_aurora:
 # =============================================================================
 # CLIMATE ENTITIES
 # =============================================================================
-
-climate:
-  # Zone 1 auto-detects thermostat vs IZ2 mode at runtime.
-  # On non-IZ2 systems it reads system-wide registers (thermostat mode).
-  # On IZ2 systems it reads per-zone data from the IZ2 controller.
-  - platform: waterfurnace_aurora
-    id: aurora_thermostat
-    name: "Heat Pump"
-    aurora_id: aurora
-    # zone: 1  # default; omit for single-zone or non-IZ2 systems
-
-  # IZ2 Zone climates (uncomment if you have IntelliZone 2)
-  # Each zone appears as a separate climate entity in Home Assistant.
-  # - platform: waterfurnace_aurora
-  #   id: aurora_zone_2
-  #   name: "Zone 2"
-  #   aurora_id: aurora
-  #   zone: 2
-  # - platform: waterfurnace_aurora
-  #   id: aurora_zone_3
-  #   name: "Zone 3"
-  #   aurora_id: aurora
-  #   zone: 3
-  # - platform: waterfurnace_aurora
-  #   id: aurora_zone_4
-  #   name: "Zone 4"
-  #   aurora_id: aurora
-  #   zone: 4
-  # - platform: waterfurnace_aurora
-  #   id: aurora_zone_5
-  #   name: "Zone 5"
-  #   aurora_id: aurora
-  #   zone: 5
-  # - platform: waterfurnace_aurora
-  #   id: aurora_zone_6
-  #   name: "Zone 6"
-  #   aurora_id: aurora
-  #   zone: 6
+# Climate must be defined in your device YAML (not here) because ESPHome
+# appends list items from packages — it cannot replace them by id.
+#
+# Single zone (no IZ2):
+# climate:
+#   - platform: waterfurnace_aurora
+#     id: aurora_thermostat
+#     name: "Heat Pump"
+#     aurora_id: aurora
+#
+# IZ2 multi-zone:
+# climate:
+#   - platform: waterfurnace_aurora
+#     id: aurora_thermostat
+#     name: "Zone 1"
+#     aurora_id: aurora
+#     zone: 1
+#   - platform: waterfurnace_aurora
+#     id: aurora_zone_2
+#     name: "Zone 2"
+#     aurora_id: aurora
+#     zone: 2
 
 # =============================================================================
 # WATER HEATER (Domestic Hot Water)
@@ -112,12 +93,13 @@ climate:
 # Unified water heater entity — replaces the separate DHW switch + number.
 # Provides current temperature, target setpoint, and mode (OFF / HEAT_PUMP)
 # as a single Water Heater card in Home Assistant. Requires HA 2026.2+.
+# Uncomment in your device YAML if your system has an AXB board with DHW.
 
-water_heater:
-  - platform: waterfurnace_aurora
-    id: aurora_dhw
-    name: "Domestic Hot Water"
-    aurora_id: aurora
+# water_heater:
+#   - platform: waterfurnace_aurora
+#     id: aurora_dhw
+#     name: "Domestic Hot Water"
+#     aurora_id: aurora
 
 # =============================================================================
 # CONTROLS - SWITCHES

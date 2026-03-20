@@ -17,6 +17,88 @@ An ESPHome/C++ port of the [waterfurnace_aurora Ruby gem](https://github.com/ccu
 - **IntelliZone 2 (IZ2)** multi-zone systems (up to 6 zones)
 - **AXB Accessory Board** (for DHW, loop pump control, enhanced sensors)
 
+## Hardware
+
+### Recommended: Waveshare ESP32-S3-RS485-CAN
+
+The **[Waveshare ESP32-S3-RS485-CAN](https://www.waveshare.com/esp32-s3-rs485-can.htm)** is the recommended board. It has a built-in RS-485 transceiver — no external MAX485 module needed.
+
+| Pin    | Function               |
+| :----- | :--------------------- |
+| GPIO17 | UART TX                |
+| GPIO18 | UART RX                |
+| GPIO21 | RS-485 Flow Control    |
+
+Connect the board to the heat pump's AID port using an RJ-45 cable (pins 1-4 only). See **[Hardware Setup & Wiring](docs/HARDWARE.md)** for the AID port pinout and cable wiring.
+
+> **Warning:** AID port pins 5-8 carry 24VAC. Do not connect these to the board. See [docs/HARDWARE.md](docs/HARDWARE.md) for details.
+
+### Alternative: ESP32 + MAX485
+
+Any ESP32 or ESP8266 with an external MAX485 RS-485 transceiver also works. See **[Hardware Setup & Wiring](docs/HARDWARE.md)** for wiring diagrams and module recommendations.
+
+## One-Click Install
+
+Flash the firmware directly from your browser — no ESPHome installation required:
+
+**[Install Firmware](https://espforge.github.io/esphome-waterfurnace/)**
+
+Connect the Waveshare board via USB-C, click "Install", and follow the prompts. After flashing, the device appears in your ESPHome Dashboard for adoption.
+
+## Installation
+
+### ESPHome Dashboard Import
+
+After flashing with the one-click installer or adopting from the Dashboard, the device automatically imports its configuration from this repository. Just set your Wi-Fi credentials during adoption.
+
+### Package Import (Manual Setup)
+
+For custom boards or advanced configurations, add a package import to your ESPHome YAML:
+
+```yaml
+substitutions:
+  name: waterfurnace-aurora
+  friendly_name: "Geothermal Heat Pump"
+  # Adjust pins to match your wiring (defaults are for Waveshare board)
+  uart_tx_pin: GPIO17
+  uart_rx_pin: GPIO18
+  flow_control_pin: GPIO21
+
+packages:
+  waterfurnace_aurora: github://espforge/esphome-waterfurnace/waterfurnace_aurora.yaml@main
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+api:
+ota:
+wifi:
+  ssid: "MyWiFi"
+  password: "password"
+```
+
+### Configuration Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `name` | - | Device name used for ESPHome ID |
+| `friendly_name` | - | Friendly name for Home Assistant |
+| `component_source` | `github://espforge/esphome-waterfurnace@main` | Where to load the component from |
+| `uart_tx_pin` | `GPIO17` | TX pin (Waveshare: GPIO17) |
+| `uart_rx_pin` | `GPIO18` | RX pin (Waveshare: GPIO18) |
+| `flow_control_pin` | `GPIO21` | RS-485 flow control pin (Waveshare: GPIO21) |
+| `modbus_address` | `1` | Modbus slave address of the Aurora ABC board |
+| `update_interval` | `5s` | How often to poll the heat pump (base interval for fast tier) |
+| `read_retries` | `2` | Number of Modbus read retries on failure (0-10) |
+
 ## Features
 
 ### Climate Control
@@ -55,64 +137,6 @@ An ESPHome/C++ port of the [waterfurnace_aurora Ruby gem](https://github.com/ccu
 - AXB DIP switch inputs
 - Detected pump type
 
-## Hardware Requirements
-
-You need an **ESP32 or ESP8266**, a **MAX485 RS485 transceiver** with DE/RE flow control pins, and an **RJ45 cable** to connect to the heat pump's AID Tool port.
-
-> **Important**: Use a MAX485 module with **exposed DE/RE pins**. Avoid "automatic flow control" modules (they lack the timing control needed for reliable Modbus RTU).
-
-For detailed wiring diagrams, pin connections, RS485 module recommendations, and ESP8266-specific notes, see **[Hardware Setup & Wiring](docs/HARDWARE.md)**.
-
-## Installation & Configuration
-
-This component uses **ESPHome Packages** to pull the full sensor/control configuration from GitHub with a single import line. You only need to set your pin assignments and Wi-Fi credentials.
-
-### Minimal Example
-
-```yaml
-substitutions:
-  name: waterfurnace-aurora
-  friendly_name: "Geothermal Heat Pump"
-  # Adjust these three pins to match your wiring (see docs/HARDWARE.md)
-  uart_tx_pin: GPIO17
-  uart_rx_pin: GPIO16
-  flow_control_pin: GPIO4
-
-# This line pulls all component YAML (sensors, controls, climate, etc.)
-# from GitHub automatically. No need to copy files into your config directory.
-packages:
-  waterfurnace.aurora: github://daemonp/esphome_waterfurnace_aurora/waterfurnace_aurora.yaml@master
-
-esphome:
-  name: ${name}
-  friendly_name: ${friendly_name}
-
-esp32:
-  board: esp32dev
-  framework:
-    type: arduino
-
-logger:
-api:
-ota:
-wifi:
-  ssid: "MyWiFi"
-  password: "password"
-```
-
-### Configuration Variables
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `name` | - | Device name used for ESPHome ID |
-| `friendly_name` | - | Friendly name for Home Assistant |
-| `uart_tx_pin` | `GPIO17` | TX pin connected to RS485 module DI |
-| `uart_rx_pin` | `GPIO16` | RX pin connected to RS485 module RO |
-| `flow_control_pin` | `GPIO4` | Pin for RS485 DE/RE flow control |
-| `modbus_address` | `1` | Modbus slave address of the Aurora ABC board |
-| `update_interval` | `5s` | How often to poll the heat pump (base interval for fast tier) |
-| `read_retries` | `2` | Number of Modbus read retries on failure (0-10) |
-
 ### Hardware Detection
 
 The component automatically detects installed hardware at startup:
@@ -124,12 +148,9 @@ The component automatically detects installed hardware at startup:
 - **Pump Type**: register 413 (Open Loop, FC1, FC2, VS Pump, etc.); gates VS pump speed registers
 - **AWL Versions**: thermostat (register 801), AXB (register 807), IZ2 (register 813); gates register selection
 
-Sensors that depend on hardware not present show as "Unknown" in Home Assistant. If auto-detection fails, you can add manual overrides to your YAML. These merge with the package configuration (you do not need to redefine the base component):
+Sensors that depend on hardware not present show as "Unknown" in Home Assistant. If auto-detection fails, you can add manual overrides to your YAML:
 
 ```yaml
-# Add this block alongside your packages: import to override auto-detection.
-# The package already defines the waterfurnace_aurora component; ESPHome
-# merges these keys with the package's base definition.
 waterfurnace_aurora:
   has_axb: true
   has_vs_drive: true
@@ -137,35 +158,34 @@ waterfurnace_aurora:
   num_iz2_zones: 3
 ```
 
-### ESP8266 Notes
+## Adding Climate Control
 
-The ESP8266 is supported but you **must** add `logger: baud_rate: 0` to your YAML. The ESP8266 has only one hardware UART; without this setting the logger claims it and RS-485 communication will fail. See **[Hardware Setup](docs/HARDWARE.md#esp8266-notes)** for full details.
+Climate is not included in the base package (it depends on your zone setup). Add it to your device YAML after adoption:
 
-### IZ2 Zone Configuration
-
-If you have an IntelliZone 2 system, **comment out the main "Heat Pump" climate entity** and uncomment zone entries matching your zone count. The main thermostat reads system-wide registers that contain IZ2 controller data, so it will show incorrect values (e.g., 32 F current temp, 158 F setpoints) when IZ2 is active.
+### Single Zone (No IZ2)
 
 ```yaml
 climate:
-  # Comment out on IZ2 systems (shows incorrect values):
-  # - platform: waterfurnace_aurora
-  #   id: aurora_thermostat
-  #   name: "Heat Pump"
-  #   aurora_id: aurora
-
-  # Uncomment zones matching your system (up to 6):
   - platform: waterfurnace_aurora
-    id: aurora_zone_1
+    name: "Heat Pump"
+    aurora_id: aurora
+```
+
+### IZ2 Multi-Zone
+
+Comment out the single-zone entry and add zones matching your system (up to 6):
+
+```yaml
+climate:
+  - platform: waterfurnace_aurora
     name: "Zone 1"
     aurora_id: aurora
     zone: 1
   - platform: waterfurnace_aurora
-    id: aurora_zone_2
     name: "Zone 2"
     aurora_id: aurora
     zone: 2
   - platform: waterfurnace_aurora
-    id: aurora_zone_3
     name: "Zone 3"
     aurora_id: aurora
     zone: 3
@@ -223,6 +243,10 @@ Or paste the contents of [`docs/ha_humidifier_templates.yaml`](docs/ha_humidifie
 
 See **[Exposed Entities: Humidity Control](docs/ENTITIES.md#humidity-control)** for the full list of underlying entities and register details.
 
+## ESP8266 Notes
+
+The ESP8266 is supported but you **must** add `logger: baud_rate: 0` to your YAML. The ESP8266 has only one hardware UART; without this setting the logger claims it and RS-485 communication will fail. See **[Hardware Setup](docs/HARDWARE.md#esp8266-notes)** for full details.
+
 ## Troubleshooting
 
 ### No Communication
@@ -240,7 +264,7 @@ See **[Exposed Entities: Humidity Control](docs/ENTITIES.md#humidity-control)** 
 - Sensors show "Unknown" when the required hardware is not detected (AXB, VS Drive, IZ2)
 - Check startup logs for detection messages (e.g., "AXB: detected", "VS Drive: detected")
 - If auto-detection fails, use the YAML overrides described in [Hardware Detection](#hardware-detection)
-- On IZ2 systems, see [IZ2 Zone Configuration](#iz2-zone-configuration) if the main thermostat shows bogus values
+- On IZ2 systems, see [Adding Climate Control](#iz2-multi-zone) if the main thermostat shows bogus values
 
 ## Why Not ESPHome's Built-in Modbus Controller?
 

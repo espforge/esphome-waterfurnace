@@ -1,0 +1,25 @@
+packages:
+  core: !include waterfurnace-esp32-s3.yaml
+
+esphome:
+  project:
+    version: dev
+
+dashboard_import:
+  package_import_url: github://espforge/esphome-waterfurnace/waterfurnace-esp32-s3.yaml@main
+
+esp32_improv:
+  authorizer: none
+
+improv_serial:
+
+ota:
+  - platform: web_server
+
+wifi:
+
+climate:
+  - platform: waterfurnace_aurora
+    id: aurora_thermostat
+    name: "Heat Pump"
+    aurora_id: aurora

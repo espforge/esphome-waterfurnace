@@ -1,0 +1,7 @@
+title: ESPHome WaterFurnace Aurora
+description: ESPHome component for WaterFurnace Aurora heat pumps via RS-485
+remote_theme: pages-themes/slate@v0.2.0
+baseurl: "/esphome-waterfurnace"
+url: "https://espforge.github.io"
+plugins:
+  - jekyll-remote-theme

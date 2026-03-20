@@ -1,0 +1,67 @@
+substitutions:
+  name: waterfurnace
+  friendly_name: "WaterFurnace Aurora"
+  component_source: github://espforge/esphome-waterfurnace@main
+  uart_tx_pin: GPIO17
+  uart_rx_pin: GPIO18
+  flow_control_pin: GPIO21
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  project:
+    name: espforge.waterfurnace
+    version: "0.0.0"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  custom_services: true
+
+web_server:
+  version: 3
+  local: true
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+  - platform: web_server
+
+wifi:
+
+packages:
+  waterfurnace_aurora: !include waterfurnace_aurora.yaml
+
+# Single zone (no IZ2):
+# climate:
+#   - platform: waterfurnace_aurora
+#     id: aurora_thermostat
+#     name: "Heat Pump"
+#     aurora_id: aurora
+#
+# IZ2 multi-zone:
+# climate:
+#   - platform: waterfurnace_aurora
+#     id: aurora_thermostat
+#     name: "Zone 1"
+#     aurora_id: aurora
+#     zone: 1
+#   - platform: waterfurnace_aurora
+#     id: aurora_zone_2
+#     name: "Zone 2"
+#     aurora_id: aurora
+#     zone: 2
+
+# Domestic Hot Water
+# water_heater:
+#   - platform: waterfurnace_aurora
+#     id: aurora_dhw
+#     name: "Domestic Hot Water"
+#     aurora_id: aurora
