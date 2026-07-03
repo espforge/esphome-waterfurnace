@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -665,6 +666,13 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
   uint32_t last_successful_response_{0};
   uint32_t tx_complete_time_{0};  // millis() when TX FIFO is expected to drain
   
+  // Keeps loop() running at high frequency while TX is draining, so the RS-485
+  // flow-control pin is released within ~1ms of tx_complete_time_ instead of up
+  // to a full loop interval (~16ms) late. A fast-responding slave can start its
+  // reply before a late release, and the transceiver (RX disabled while in TX
+  // mode) silently drops the head of the response frame.
+  HighFrequencyLoopRequester high_freq_requester_;
+
   // Connectivity
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
   uint32_t connected_timeout_{DEFAULT_CONNECTED_TIMEOUT_MS};

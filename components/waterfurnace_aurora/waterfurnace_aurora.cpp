@@ -76,6 +76,11 @@ void WaterFurnaceAurora::send_request_common_(const uint8_t *frame, size_t frame
   this->pending_request_ = type;
   this->last_request_time_ = millis();
   this->tx_complete_time_ = millis() + this->tx_time_ms_(frame_len);
+  // Run loop() at high frequency until TX drains, so the RS-485 flow-control
+  // pin is released on time. At normal loop cadence (~16ms) the release can be
+  // late enough that a fast-responding slave's reply head is lost while the
+  // transceiver is still in TX mode (RX disabled).
+  this->high_freq_requester_.start();
   this->transition_(State::TX_PENDING);
 }
 
@@ -330,6 +335,7 @@ void WaterFurnaceAurora::on_shutdown() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(false);
   }
+  this->high_freq_requester_.stop();
 }
 
 // ============================================================================
@@ -376,6 +382,7 @@ void WaterFurnaceAurora::loop() {
         if (this->flow_control_pin_ != nullptr) {
           this->flow_control_pin_->digital_write(false);
         }
+        this->high_freq_requester_.stop();
         this->transition_(State::WAITING_RESPONSE);
       }
       return;
