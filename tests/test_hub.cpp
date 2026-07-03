@@ -406,6 +406,48 @@ TEST_CASE("setup() is non-blocking", "[hub][state]") {
   REQUIRE_FALSE(hub.is_setup_complete());
 }
 
+// While the TX FIFO drains, loop() must run at high frequency so the RS-485
+// flow-control pin is released within ~1ms of tx_complete_time_. At normal
+// loop cadence (~16ms) the release can land a full tick late, and a
+// fast-responding slave's reply head is lost while the transceiver is still
+// in TX mode (RX disabled). Seen in the field: the ABC answers func 0x03
+// device-ID reads faster than a loop tick, so setup ID reads timed out
+// forever with only the tail of the response in the RX buffer.
+TEST_CASE("RS-485 turnaround: high-frequency loop while TX drains", "[hub][state][rs485]") {
+  WaterFurnaceAurora hub;
+  GPIOPin flow_pin;
+  hub.set_flow_control_pin(&flow_pin);
+  set_millis(0);
+
+  hub.setup();
+  hub.loop();  // sends ID request → TX_PENDING, flow pin high
+
+  // While TX drains: pin held high, high-frequency loop requested
+  REQUIRE(flow_pin.state_);
+  REQUIRE(HighFrequencyLoopRequester::is_high_frequency());
+
+  complete_tx(hub, 0);  // TX_PENDING → WAITING_RESPONSE
+
+  // Pin released and high-frequency request withdrawn together
+  REQUIRE_FALSE(flow_pin.state_);
+  REQUIRE_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
+TEST_CASE("RS-485 turnaround: on_shutdown() withdraws high-frequency request", "[hub][state][rs485]") {
+  WaterFurnaceAurora hub;
+  GPIOPin flow_pin;
+  hub.set_flow_control_pin(&flow_pin);
+  set_millis(0);
+
+  hub.setup();
+  hub.loop();  // sends ID request → TX_PENDING, high-frequency active
+
+  hub.on_shutdown();  // reboot mid-transmit
+
+  REQUIRE_FALSE(flow_pin.state_);
+  REQUIRE_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+}
+
 // Helper: drive a hub through the full setup sequence (ID + detect + VS probe).
 // Returns the hub in IDLE state with setup_complete_ == true.
 // Callers can set overrides before calling this.
