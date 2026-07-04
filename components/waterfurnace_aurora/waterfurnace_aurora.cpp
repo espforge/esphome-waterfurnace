@@ -1291,23 +1291,28 @@ void WaterFurnaceAurora::process_fault_history_response_(const protocol::ParsedR
     
     for (const auto &rv : resp.registers) {
       if (fault_count >= max_faults) break;
+      if (rv.address < registers::FAULT_HISTORY_START || rv.address > registers::FAULT_HISTORY_END)
+        continue;
       if (rv.value == 0 || rv.value == 0xFFFF) continue;
-      
-      uint8_t fault_code = rv.value % 100;
-      if (fault_code == 0) continue;
-      
+
+      // The register ADDRESS determines the fault code (601 = E1 ... 699 = E99);
+      // the register VALUE is that fault's occurrence count.
+      uint8_t fault_code = static_cast<uint8_t>(rv.address - registers::FAULT_HISTORY_START + 1);
+
       if (!this->cached_fault_history_.empty()) this->cached_fault_history_ += "; ";
       this->cached_fault_history_ += "E";
-      char code_buf[4];
-      snprintf(code_buf, sizeof(code_buf), "%u", fault_code);
-      this->cached_fault_history_ += code_buf;
-      
+      char num_buf[8];
+      snprintf(num_buf, sizeof(num_buf), "%u", fault_code);
+      this->cached_fault_history_ += num_buf;
+
       const char *desc = get_fault_description(fault_code);
       if (desc && strcmp(desc, "Unknown Fault") != 0) {
         this->cached_fault_history_ += " (";
         this->cached_fault_history_ += desc;
         this->cached_fault_history_ += ")";
       }
+      snprintf(num_buf, sizeof(num_buf), " x%u", rv.value);
+      this->cached_fault_history_ += num_buf;
       fault_count++;
     }
     

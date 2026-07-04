@@ -1408,3 +1408,106 @@ TEST_CASE("VS Pump manual control state tracking", "[hub][pump]") {
     REQUIRE_FALSE(hub.is_pump_manual_control());
   }
 }
+
+// ============================================================================
+// Fault History Rendering
+// ============================================================================
+
+// Helper: build a valid func 0x41 (read ranges) response frame from raw values.
+// Values map positionally onto the expected-address list the hub passed to
+// send_request_ (registers 601-699 for the fault history read).
+static std::vector<uint8_t> make_response_41(const std::vector<uint16_t> &values) {
+  std::vector<uint8_t> frame;
+  frame.push_back(0x01);  // slave
+  frame.push_back(0x41);  // func
+  frame.push_back(static_cast<uint8_t>(values.size() * 2));  // byte count
+  for (auto v : values) {
+    frame.push_back(v >> 8);
+    frame.push_back(v & 0xFF);
+  }
+  uint16_t crc = protocol::crc16(frame.data(), frame.size());
+  frame.push_back(crc & 0xFF);
+  frame.push_back(crc >> 8);
+  return frame;
+}
+
+// Helper: run one full poll cycle, answering every request the hub transmits
+// until it goes quiet.  Fast/medium poll requests (func 0x42) are answered with
+// zeros; a fault history request (func 0x41) is answered with `fault_regs`
+// applied on top of 99 zero registers (601-699).
+static void run_poll_cycle(WaterFurnaceAurora &hub, uint32_t &ms,
+                           const std::vector<std::pair<uint16_t, uint16_t>> &fault_regs) {
+  hub.update();
+  while (true) {
+    auto tx = hub.mock_get_transmitted();
+    if (tx.empty()) break;
+    complete_tx(hub, ms);
+    ms += 200;
+    if (tx[1] == 0x41) {
+      std::vector<uint16_t> values(99, 0);
+      for (const auto &fr : fault_regs) {
+        if (fr.first >= registers::FAULT_HISTORY_START && fr.first <= registers::FAULT_HISTORY_END)
+          values[fr.first - registers::FAULT_HISTORY_START] = fr.second;
+      }
+      hub.mock_receive(make_response_41(values));
+    } else {
+      size_t num_regs = (tx.size() - 4) / 2;
+      std::vector<std::pair<uint16_t, uint16_t>> resp_vals;
+      for (size_t i = 0; i < num_regs; i++) {
+        uint16_t addr = (tx[2 + i * 2] << 8) | tx[3 + i * 2];
+        resp_vals.emplace_back(addr, 0);
+      }
+      hub.mock_receive(make_response_42(resp_vals));
+    }
+    set_millis(ms);
+    ms += 200;
+    hub.loop();
+  }
+}
+
+TEST_CASE("Fault history rendering", "[hub][sensors][faults]") {
+  WaterFurnaceAurora hub;
+  text_sensor::TextSensor history;
+  sensor::Sensor e7_counter;
+  hub.set_fault_history_sensor(&history);
+  hub.set_fault_counter_sensor(6, &e7_counter);  // index 6 = E7
+  hub.set_has_any_fault_counter_sensor();
+
+  set_millis(0);
+  drive_setup(hub);
+  REQUIRE(hub.is_setup_complete());
+
+  uint32_t ms = 200;
+
+  SECTION("register address determines the E-code, value is the count") {
+    // Real-world regression: E7 (Condensate Overflow, register 607) occurred
+    // 10 times.  The register VALUE (10) must render as a count, not as fault
+    // code E10 (Compressor Monitor).
+    for (int cycle = 1; cycle <= 60; cycle++) {
+      run_poll_cycle(hub, ms, {{607, 10}, {602, 3}});
+    }
+
+    REQUIRE(e7_counter.has_state());
+    REQUIRE(e7_counter.state == 10.0f);
+    REQUIRE(history.has_state_);
+    REQUIRE(history.state == "E2 (High Pressure) x3; E7 (Condensate Overflow) x10");
+  }
+
+  SECTION("all zero counters render as No faults") {
+    for (int cycle = 1; cycle <= 60; cycle++) {
+      run_poll_cycle(hub, ms, {});
+    }
+
+    REQUIRE(history.has_state_);
+    REQUIRE(history.state == "No faults");
+  }
+
+  SECTION("0xFFFF sentinel registers are skipped") {
+    for (int cycle = 1; cycle <= 60; cycle++) {
+      run_poll_cycle(hub, ms, {{650, 0xFFFF}, {607, 2}});
+    }
+
+    REQUIRE(history.has_state_);
+    REQUIRE(history.state == "E7 (Condensate Overflow) x2");
+  }
+}
