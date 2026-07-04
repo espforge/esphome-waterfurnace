@@ -120,7 +120,7 @@ Complete reference of all Home Assistant entities created by this component.
 | `hvac_mode` | Configured HVAC mode (Off, Auto, Cool, Heat, E-Heat) |
 | `fan_mode` | Configured fan mode (Auto, Continuous, Intermittent) |
 | `fault_description` | Human-readable fault description |
-| `fault_history` | Up to 10 past faults with descriptions (semicolon-separated) |
+| `fault_history` | Fault occurrence counts by code, up to 10 entries (semicolon-separated, e.g. `E7 (Condensate Overflow) x3`) |
 | `model_number` | Heat pump model number (registers 92-103) |
 | `serial_number` | Heat pump serial number (registers 105-109) |
 | `vs_derate` | VS Drive derate status flags (5/7-Series) |

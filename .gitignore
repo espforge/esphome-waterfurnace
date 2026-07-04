@@ -18,3 +18,4 @@ home.yaml
 mise.toml
 CODEREVIEW-esphome.md
 off/
+tests/*.dSYM/
