@@ -99,6 +99,21 @@ wifi:
 | `update_interval` | `5s` | How often to poll the heat pump (base interval for fast tier) |
 | `read_retries` | `2` | Number of Modbus read retries on failure (0-10) |
 
+### First-time Wi-Fi setup without a cable
+
+The example config includes two ways to get a freshly flashed device onto Wi-Fi
+without editing YAML or reflashing:
+
+- **Improv via Bluetooth** (`esp32_improv`): open the Home Assistant companion
+  app (or https://www.improv-wifi.com in Chrome) near the device and it offers
+  to send Wi-Fi credentials over BLE.
+- **Captive-portal hotspot** (`captive_portal`): if the device can't join a
+  network it broadcasts `<name> Setup`; join it from a phone and pick your
+  network on the page that opens (or browse to 192.168.4.1).
+
+Credentials from either path are stored in flash and survive reboots and OTA
+updates. Both can be removed from the config if you prefer a fixed SSID only.
+
 ## Features
 
 ### Climate Control
