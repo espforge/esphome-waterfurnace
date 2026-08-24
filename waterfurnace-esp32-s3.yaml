@@ -35,6 +35,20 @@ ota:
   - platform: web_server
 
 wifi:
+  ap:
+    ssid: "${name} Setup"
+
+# Fallback Wi-Fi hotspot with a captive portal: if the device can't join the
+# configured network it raises "<name> Setup"; joining it from a phone opens a
+# page to pick a network and save credentials to flash.
+captive_portal:
+
+# Improv BLE provisioning: the Home Assistant companion app (or any Improv
+# client, e.g. https://www.improv-wifi.com) detects the device over Bluetooth
+# and can send Wi-Fi credentials to it -- no hotspot or USB cable needed.
+# Comment this out if you need the ~370 KB of flash back.
+esp32_improv:
+  authorizer: none
 
 packages:
   waterfurnace_aurora: !include waterfurnace_aurora.yaml
