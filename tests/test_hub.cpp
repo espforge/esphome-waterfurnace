@@ -567,6 +567,80 @@ TEST_CASE("Full setup flow with mock UART", "[hub][state][integration]") {
 }
 
 // ============================================================================
+// RS-485 request echo (generic MAX485 modules)
+// ============================================================================
+
+// Some transceivers let the ESP hear its own request, so the rx buffer starts
+// with an echo -- possibly only its tail, i.e. beginning mid-frame -- ahead of
+// the real reply. Seen in the field on an ESP32 + MAX485 against ABC v4.03:
+//   rx_buf: 04 4F 00 58 00 59 00 5A 00 5B F8 A5 01 42 20 00 ...
+// Before the resync fix, the unknown "function code" at offset 1 made every
+// setup request time out.
+static void run_setup_with_echo(size_t echo_skip) {
+  WaterFurnaceAurora hub;
+  set_millis(0);
+  hub.setup();
+
+  // ID request (func 0x03), echoed back before the reply
+  hub.loop();
+  auto tx = hub.mock_get_transmitted();
+  REQUIRE(tx.size() > 1);
+  REQUIRE(tx[1] == 0x03);
+  complete_tx(hub, 0);
+  std::vector<uint8_t> echo(tx.begin() + std::min(echo_skip, tx.size()), tx.end());
+  hub.mock_receive(echo);
+  std::vector<uint16_t> id_values(18, 0x2020);
+  hub.mock_receive(make_response_03(id_values));
+  set_millis(50);
+  hub.loop();
+
+  // Detect request (func 0x42), echoed back before the reply
+  hub.loop();
+  tx = hub.mock_get_transmitted();
+  REQUIRE(tx.size() > 1);  // fails here if the previous reply was never parsed
+  REQUIRE(tx[1] == 0x42);
+  size_t num_detect_regs = (tx.size() - 4) / 2;
+  std::vector<std::pair<uint16_t, uint16_t>> detect_vals;
+  for (size_t i = 0; i < num_detect_regs; i++) {
+    uint16_t addr = (tx[2 + i * 2] << 8) | tx[3 + i * 2];
+    uint16_t val = 3;
+    if (addr == registers::THERMOSTAT_VERSION) val = 300;
+    if (addr == registers::BLOWER_TYPE) val = 0;
+    if (addr == registers::ENERGY_MONITOR) val = 0;
+    if (addr == registers::PUMP_TYPE) val = 0;
+    if (addr >= 88 && addr <= 91) val = 0x2020;
+    detect_vals.emplace_back(addr, val);
+  }
+  complete_tx(hub, 50);
+  echo.assign(tx.begin() + std::min(echo_skip, tx.size()), tx.end());
+  hub.mock_receive(echo);
+  hub.mock_receive(make_response_42(detect_vals));
+  set_millis(100);
+  hub.loop();
+
+  // VS probe (func 0x42), echoed back before the reply
+  hub.loop();
+  hub.loop();
+  tx = hub.mock_get_transmitted();
+  REQUIRE(tx.size() > 1);  // fails here if the previous reply was never parsed
+  REQUIRE(tx[1] == 0x42);
+  complete_tx(hub, 100);
+  echo.assign(tx.begin() + std::min(echo_skip, tx.size()), tx.end());
+  hub.mock_receive(echo);
+  hub.mock_receive(make_response_42({{3001, 0}, {3322, 0}, {3325, 0}}));
+  set_millis(150);
+  hub.loop();
+
+  REQUIRE(hub.is_setup_complete());
+}
+
+TEST_CASE("RS-485 request echo ahead of response is skipped", "[hub][state][rs485][echo]") {
+  SECTION("full echo of the request") { run_setup_with_echo(0); }
+  SECTION("partial echo starting mid-frame") { run_setup_with_echo(5); }
+  SECTION("no echo (unchanged behavior)") { run_setup_with_echo(1000); }
+}
+
+// ============================================================================
 // IZ2 Demand Sensors
 // ============================================================================
 
