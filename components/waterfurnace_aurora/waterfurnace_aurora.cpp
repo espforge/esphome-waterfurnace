@@ -97,14 +97,60 @@ void WaterFurnaceAurora::send_request_(const uint8_t *frame, size_t frame_len, P
   this->send_request_common_(frame, frame_len, type);
 }
 
+bool WaterFurnaceAurora::is_plausible_frame_start_(const uint8_t *p) const {
+  if (p[0] != this->address_) return false;
+  uint8_t func = p[1] & static_cast<uint8_t>(~protocol::ERROR_MASK);
+  return func == protocol::FUNC_READ_HOLDING || func == protocol::FUNC_READ_RANGES ||
+         func == protocol::FUNC_READ_REGISTERS || func == protocol::FUNC_WRITE_SINGLE ||
+         func == protocol::FUNC_WRITE_MULTI;
+}
+
+void WaterFurnaceAurora::resync_rx_buffer_() {
+  size_t skip = 0;
+  while (this->rx_buffer_len_ - skip >= 2) {
+    const uint8_t *p = this->rx_buffer_.data() + skip;
+    size_t avail = this->rx_buffer_len_ - skip;
+    if (!this->is_plausible_frame_start_(p)) {
+      skip++;
+      continue;
+    }
+    size_t expected = protocol::expected_frame_size(p, avail);
+    if (expected > protocol::MAX_FRAME_SIZE) {
+      skip++;  // impossible length: not a real frame start
+      continue;
+    }
+    if (expected == 0 || avail < expected) break;  // plausible start; wait for more bytes
+    if (protocol::validate_frame_crc(p, expected)) break;  // complete, valid frame found
+    // A complete candidate whose CRC fails is almost certainly an echo of our
+    // own request (same address + function code) rather than the reply, so
+    // keep scanning. A genuinely corrupted reply ends in the normal timeout
+    // and retry path, just as it did before.
+    skip++;
+  }
+  if (skip > 0) {
+    ESP_LOGD(TAG, "Discarded %d stray byte(s) ahead of response (request echo?)", static_cast<int>(skip));
+    size_t remaining = this->rx_buffer_len_ - skip;
+    std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + skip, remaining);
+    this->rx_buffer_len_ = remaining;
+  }
+}
+
 bool WaterFurnaceAurora::read_frame_() {
   // Drain available bytes into persistent rx_buffer_
   while (this->available() && this->rx_buffer_len_ < protocol::MAX_FRAME_SIZE) {
     this->rx_buffer_[this->rx_buffer_len_++] = this->read();
   }
   
+  // Resync: discard leading bytes that cannot be the start of our response.
+  // Some RS-485 transceivers (e.g. generic MAX485 modules) let the ESP hear
+  // part or all of its own request, so the buffer can start with an echo of
+  // the request -- possibly beginning mid-frame -- ahead of the real reply.
+  // Without this, an unknown "function code" at offset 1 makes
+  // expected_frame_size() return 0 forever and every request times out.
+  this->resync_rx_buffer_();
+
   if (this->rx_buffer_len_ < 2) return false;
-  
+
   // Determine expected frame size from bytes received so far
   size_t expected = protocol::expected_frame_size(this->rx_buffer_.data(), this->rx_buffer_len_);
   if (expected == 0) return false;  // Need more bytes

@@ -454,6 +454,9 @@ class WaterFurnaceAurora : public PollingComponent, public uart::UARTDevice
     this->send_request_(frame.data(), frame.size(), type);
   }
   bool read_frame_();
+  // Drop leading rx bytes that can't start a valid reply (e.g. request echo)
+  void resync_rx_buffer_();
+  bool is_plausible_frame_start_(const uint8_t *p) const;
   void process_response_();
   void handle_timeout_();
   
